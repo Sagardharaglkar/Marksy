@@ -30,7 +30,8 @@ jobs:
       - name: Build frontend → backend/public
         working-directory: frontend
         run: npm run build
-        # vite.config.js outputs to ../backend/public
+        env:
+          VITE_API_URL: http://marksy.vengurlatech.com/api
 
       - name: Push backend folder to `backend` branch
         run: |
