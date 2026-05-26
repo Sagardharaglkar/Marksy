@@ -1,4 +1,4 @@
-name: Build & Deploy to backend branch
+name: Build & Deploy
 
 on:
   push:
@@ -9,63 +9,43 @@ permissions:
   contents: write
 
 jobs:
-  build-and-push:
-    runs-on: ubuntu-latest 
+  deploy:
+    runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout source
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
 
-      - name: Install frontend dependencies
+      - name: Install frontend deps
+        run: npm install
         working-directory: frontend
-        run: npm ci
 
-      - name: Build frontend → backend/public
-        working-directory: frontend
+      - name: Build frontend
         run: npm run build
+        working-directory: frontend
         env:
           VITE_API_URL: https://marksy.vengurlatech.com/api
 
-      - name: Push backend folder to `backend` branch
+      - name: Deploy backend branch
         run: |
-          git config user.name  "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          cd backend
 
-          # Orphan checkout of the target branch
-          git fetch origin backend --depth=1 || true
-          git checkout --orphan backend-tmp
+          # Configure git
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
-          # Keep only the backend folder content at the repo root
-          git rm -rf --cached . > /dev/null
-          find . -mindepth 1 -maxdepth 1 \
-            ! -name 'backend' \
-            ! -name '.git' \
-            -exec rm -rf {} +
+          # Init a fresh repo in backend/
+          git init
+          git remote add origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
 
-          # Move backend contents up to repo root
-          shopt -s dotglob
-          mv backend/* .
-          rm -rf backend
-
-          # Drop node_modules — server runs npm install itself
-          rm -rf node_modules
-
-          # Write a .gitignore so node_modules never gets committed
-          echo "node_modules/" > .gitignore
-          echo ".env" >> .gitignore
-
-          # Stage everything
+          # Stage everything in backend/
           git add -A
-          git commit -m "deploy: build from ${GITHUB_SHA::7}"
+          git commit -m "deploy: ${{ github.sha }}"
 
-          # Force-push to the backend branch
-          git push origin backend-tmp:backend --force
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Force push to backend branch
+          git push origin HEAD:backend --force
