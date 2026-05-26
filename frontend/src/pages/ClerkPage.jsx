@@ -296,6 +296,7 @@ function ClassesTab() {
   async function handleAddStudent(e) {
     e.preventDefault(); setStudentError("");
     if (!seatNo || !regNo || !studentName) { setStudentError("All fields required"); return; }
+    if (!studentSemester) { setStudentError("Please select a semester"); return; }
     setSubmitting(true);
     try {
       await api.post(`/clerk/classes/${selectedClass.class_id}/students`, {
@@ -331,6 +332,7 @@ function ClassesTab() {
   async function handleSaveSubject(e) {
     e.preventDefault(); setSubjectError("");
     if (!subjectName || !subjectCode) { setSubjectError("Name and code required"); return; }
+    if (!subjectSemester) { setSubjectError("Please select a semester"); return; }
     setSubmitting(true);
     try {
       await api.post(`/clerk/classes/${selectedClass.class_id}/subjects`, {
@@ -547,8 +549,8 @@ function ClassesTab() {
                 <div className="flex flex-col gap-1 min-w-[80px]">
                   <label className="text-[10px] font-mono tracking-widest text-zinc-400 uppercase">Semester</label>
                   <select className="bg-stone-50 border border-zinc-200 rounded-xl font-mono text-sm px-3 py-2.5 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100 transition cursor-pointer" value={studentSemester} onChange={e => setStudentSemester(e.target.value)}>
-                    <option value="">—</option>
-                    {[1,2,3,4,5,6].map(n => <option key={n} value={n}>{n}</option>)}
+                    <option value="">Select</option>
+                    {[1,2,3,4,5,6].map(n => <option key={n} value={n}>Sem {n}</option>)}
                   </select>
                 </div>
                 <BtnPrimary type="submit" disabled={submitting}>+ Add</BtnPrimary>
@@ -558,7 +560,13 @@ function ClassesTab() {
 
             {addMode === "excel" && (
               <div className="flex flex-col gap-3">
-                <p className="text-xs text-zinc-400 font-mono">Required: <CodeTag>seat_no</CodeTag> <CodeTag>registration_no</CodeTag> <CodeTag>name</CodeTag> &nbsp;·&nbsp; Optional: <CodeTag>semester</CodeTag></p>
+                <a
+                  href="/students_sample.xlsx"
+                  download="students_sample.xlsx"
+                  className="text-xs font-mono text-amber-600 hover:text-amber-700 underline underline-offset-2 transition self-start"
+                >
+                  ↓ Download sample
+                </a>
                 <input
                   type="file"
                   accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"

@@ -3,6 +3,8 @@ const ExcelJS = require("exceljs");
 const db = require("../db/queries");
 const { audit } = require("../db/audit");
 
+const toTitleCase = s => s.trim().replace(/\w\S*/g, w => w.charAt(0).toUpperCase() + w.slice(1));
+
 // ─── classes ──────────────────────────────────────────────────────────────────
 
 async function listClasses(req, res) {
@@ -17,9 +19,10 @@ async function createClass(req, res) {
   if (!name || !name.trim()) {
     return res.status(400).json({ error: "Class name required" });
   }
-  const class_id = await db.createClass(college_id, name.trim());
-  audit(req, "CLASS_CREATED", { type: "class", id: class_id, name: name.trim() });
-  return res.status(201).json({ class_id, name: name.trim() });
+  const n = toTitleCase(name);
+  const class_id = await db.createClass(college_id, n);
+  audit(req, "CLASS_CREATED", { type: "class", id: class_id, name: n });
+  return res.status(201).json({ class_id, name: n });
 }
 
 async function updateClass(req, res) {
@@ -29,8 +32,9 @@ async function updateClass(req, res) {
   if (!name || !name.trim()) {
     return res.status(400).json({ error: "Class name required" });
   }
-  await db.updateClass(college_id, Number(class_id), name.trim());
-  audit(req, "CLASS_UPDATED", { type: "class", id: class_id, name: name.trim() });
+  const n = toTitleCase(name);
+  await db.updateClass(college_id, Number(class_id), n);
+  audit(req, "CLASS_UPDATED", { type: "class", id: class_id, name: n });
   return res.json({ message: "Updated" });
 }
 
@@ -78,11 +82,12 @@ async function createSubject(req, res) {
   if (existing) {
     return res.status(409).json({ error: `Subject code "${code}" is already used` });
   }
+  const n = toTitleCase(name);
   const subject_id = await db.createSubject(
-    college_id, Number(class_id), name.trim(), code, semester ? Number(semester) : null, internal_max, external_max
+    college_id, Number(class_id), n, code, semester ? Number(semester) : null, internal_max, external_max
   );
-  audit(req, "SUBJECT_CREATED", { type: "subject", id: subject_id, name: `${name.trim()} (${code})` }, { class_id, semester });
-  return res.status(201).json({ subject_id, name: name.trim(), subject_code: code, semester: semester ? Number(semester) : null });
+  audit(req, "SUBJECT_CREATED", { type: "subject", id: subject_id, name: `${n} (${code})` }, { class_id, semester });
+  return res.status(201).json({ subject_id, name: n, subject_code: code, semester: semester ? Number(semester) : null });
 }
 
 async function updateSubject(req, res) {
@@ -92,11 +97,12 @@ async function updateSubject(req, res) {
   if (!name || !subject_code) {
     return res.status(400).json({ error: "name and subject_code required" });
   }
+  const n = toTitleCase(name);
   await db.updateSubject(
-    college_id, Number(subject_id), name.trim(), subject_code.trim().toUpperCase(),
+    college_id, Number(subject_id), n, subject_code.trim().toUpperCase(),
     semester ? Number(semester) : null, internal_max, external_max
   );
-  audit(req, "SUBJECT_UPDATED", { type: "subject", id: subject_id, name: `${name.trim()} (${subject_code.trim().toUpperCase()})` }, { semester });
+  audit(req, "SUBJECT_UPDATED", { type: "subject", id: subject_id, name: `${n} (${subject_code.trim().toUpperCase()})` }, { semester });
   return res.json({ message: "Updated" });
 }
 
@@ -127,9 +133,10 @@ async function createFaculty(req, res) {
     return res.status(409).json({ error: "Phone already registered in this college" });
   }
   const password_hash = await bcrypt.hash(password, 10);
-  const user_id = await db.createUser(college_id, "faculty", name.trim(), phone.trim(), password_hash);
-  audit(req, "FACULTY_CREATED", { type: "faculty", id: user_id, name: name.trim() }, { phone: phone.trim() });
-  return res.status(201).json({ user_id, name: name.trim(), role: "faculty" });
+  const n = toTitleCase(name);
+  const user_id = await db.createUser(college_id, "faculty", n, phone.trim(), password_hash);
+  audit(req, "FACULTY_CREATED", { type: "faculty", id: user_id, name: n }, { phone: phone.trim() });
+  return res.status(201).json({ user_id, name: n, role: "faculty" });
 }
 
 async function updateFaculty(req, res) {
@@ -143,8 +150,9 @@ async function updateFaculty(req, res) {
   if (existing && existing.user_id !== Number(user_id)) {
     return res.status(409).json({ error: "Phone already in use by another user" });
   }
-  await db.updateFaculty(college_id, Number(user_id), name.trim(), phone.trim());
-  audit(req, "FACULTY_UPDATED", { type: "faculty", id: user_id, name: name.trim() }, { phone: phone.trim() });
+  const n = toTitleCase(name);
+  await db.updateFaculty(college_id, Number(user_id), n, phone.trim());
+  audit(req, "FACULTY_UPDATED", { type: "faculty", id: user_id, name: n }, { phone: phone.trim() });
   return res.json({ ok: true });
 }
 

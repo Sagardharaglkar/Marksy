@@ -1,6 +1,8 @@
 const ExcelJS = require("exceljs");
 const db = require("../db/queries");
 
+const toTitleCase = s => s.trim().replace(/\w\S*/g, w => w.charAt(0).toUpperCase() + w.slice(1));
+
 const REQUIRED_COLUMNS = ["seat_no", "registration_no", "name"];
 const OPTIONAL_COLUMNS = ["semester"];
 
@@ -94,7 +96,7 @@ async function importStudents(req, res) {
     try {
       const student_id = await db.createStudent(
         college_id, Number(class_id),
-        row.seat_no, row.registration_no, row.name, row.semester ?? null
+        row.seat_no, row.registration_no, toTitleCase(row.name), row.semester ?? null
       );
       created.push(student_id);
     } catch (err) {
@@ -118,11 +120,12 @@ async function addStudent(req, res) {
   }
   const sem = semester != null && semester !== "" ? Number(semester) : null;
   try {
+    const n = toTitleCase(name);
     const student_id = await db.createStudent(
       college_id, Number(class_id),
-      seat_no.trim(), registration_no.trim(), name.trim(), sem
+      seat_no.trim(), registration_no.trim(), n, sem
     );
-    return res.status(201).json({ student_id, seat_no: seat_no.trim(), registration_no: registration_no.trim(), name: name.trim(), semester: sem });
+    return res.status(201).json({ student_id, seat_no: seat_no.trim(), registration_no: registration_no.trim(), name: n, semester: sem });
   } catch (err) {
     if (err.message && err.message.includes("duplicate") || err.number === 2627 || err.number === 2601) {
       return res.status(409).json({ error: "Seat no or registration no already exists in this class" });

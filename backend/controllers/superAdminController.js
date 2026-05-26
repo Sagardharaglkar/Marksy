@@ -2,6 +2,8 @@ const bcrypt = require("bcryptjs");
 const db = require("../db/queries");
 const { audit } = require("../db/audit");
 
+const toTitleCase = s => s.trim().replace(/\w\S*/g, w => w.charAt(0).toUpperCase() + w.slice(1));
+
 async function editClerk(req, res) {
   const { college_id, user_id } = req.params;
   const { name, phone } = req.body;
@@ -15,8 +17,9 @@ async function editClerk(req, res) {
     return res.status(409).json({ error: "Phone already in use by another user" });
   }
 
-  await db.updateClerk(Number(college_id), Number(user_id), name.trim(), phone.trim());
-  audit(req, "CLERK_UPDATED", { type: "clerk", id: user_id, name: name.trim() }, { college_id, phone: phone.trim() });
+  const n = toTitleCase(name);
+  await db.updateClerk(Number(college_id), Number(user_id), n, phone.trim());
+  audit(req, "CLERK_UPDATED", { type: "clerk", id: user_id, name: n }, { college_id, phone: phone.trim() });
   return res.json({ ok: true });
 }
 
@@ -75,9 +78,10 @@ async function createCollege(req, res) {
     attempts++;
   }
 
-  const college_id = await db.createCollege(name.trim(), college_code);
-  audit(req, "COLLEGE_CREATED", { type: "college", id: college_id, name: name.trim() }, { college_code });
-  return res.status(201).json({ college_id, college_code, name: name.trim() });
+  const n = toTitleCase(name);
+  const college_id = await db.createCollege(n, college_code);
+  audit(req, "COLLEGE_CREATED", { type: "college", id: college_id, name: n }, { college_code });
+  return res.status(201).json({ college_id, college_code, name: n });
 }
 
 async function listColleges(req, res) {
@@ -108,9 +112,10 @@ async function createFirstClerk(req, res) {
   }
 
   const password_hash = await bcrypt.hash(password, 10);
-  const user_id = await db.createUser(Number(college_id), "clerk", name.trim(), phone.trim(), password_hash);
-  audit(req, "CLERK_CREATED", { type: "clerk", id: user_id, name: name.trim() }, { college_id, phone: phone.trim() });
-  return res.status(201).json({ user_id, name: name.trim(), role: "clerk" });
+  const n = toTitleCase(name);
+  const user_id = await db.createUser(Number(college_id), "clerk", n, phone.trim(), password_hash);
+  audit(req, "CLERK_CREATED", { type: "clerk", id: user_id, name: n }, { college_id, phone: phone.trim() });
+  return res.status(201).json({ user_id, name: n, role: "clerk" });
 }
 
 module.exports = { createCollege, listColleges, listClerks, createFirstClerk, editClerk, removeClerk, blockClerk, toggleCollegeActive };
