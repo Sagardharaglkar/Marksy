@@ -1,4 +1,5 @@
 const db = require("../db/queries");
+const { audit } = require("../db/audit");
 
 async function listAssignments(req, res) {
   const { college_id, user_id } = req.user;
@@ -50,6 +51,11 @@ async function saveMarks(req, res) {
     await db.upsertMark(college_id, Number(assignment_id), Number(student_id), value);
   }
 
+  audit(req, "MARKS_SAVED", { type: "assignment", id: assignment_id, name: assignment.subject_name }, {
+    mark_type: assignment.mark_type,
+    count: marks.length,
+  });
+
   return res.json({ message: "Saved" });
 }
 
@@ -69,6 +75,9 @@ async function submitAssignment(req, res) {
   }
 
   await db.updateAssignmentStatus(college_id, Number(assignment_id), "submitted");
+  audit(req, "ASSIGNMENT_SUBMITTED", { type: "assignment", id: assignment_id, name: assignment.subject_name }, {
+    mark_type: assignment.mark_type,
+  });
   return res.json({ message: "Submitted" });
 }
 
@@ -91,6 +100,9 @@ async function reopenAssignment(req, res) {
   }
 
   await db.updateAssignmentStatus(college_id, Number(assignment_id), "open");
+  audit(req, "ASSIGNMENT_REOPENED", { type: "assignment", id: assignment_id, name: assignment.subject_name }, {
+    mark_type: assignment.mark_type,
+  });
   return res.json({ message: "Reopened" });
 }
 

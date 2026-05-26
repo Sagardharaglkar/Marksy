@@ -1,15 +1,14 @@
 const { test, expect } = require("@playwright/test");
 
 test.describe("Login page", () => {
-  test("redirects to / if accessed without college state", async ({ page }) => {
-    // Navigate directly without location state — should bounce back to /
+  test("shows login page at /login", async ({ page }) => {
     await page.goto("/login");
-    await expect(page).toHaveURL("/");
+    await expect(page.getByTestId("login-page")).toBeVisible();
   });
 
   test("shows required field error when submitting empty form", async ({ page }) => {
-    // Arrive via super-admin path so the page renders
-    await page.goto("/");
+    // Arrive via super-admin path so the credentials form renders
+    await page.goto("/login");
     await page.getByText("Super-admin access").click();
     await expect(page.getByTestId("login-page")).toBeVisible();
 
@@ -19,7 +18,7 @@ test.describe("Login page", () => {
   });
 
   test("shows error for bad credentials", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/login");
     await page.getByText("Super-admin access").click();
 
     await page.getByTestId("login-phone").fill("9999999999");
@@ -29,10 +28,10 @@ test.describe("Login page", () => {
     await expect(page.getByTestId("login-error")).toBeVisible();
   });
 
-  test("back link returns to college code page", async ({ page }) => {
-    await page.goto("/");
+  test("back link returns to college code step", async ({ page }) => {
+    await page.goto("/login");
     await page.getByText("Super-admin access").click();
-    await page.getByText("← Back").click();
-    await expect(page).toHaveURL("/");
+    await page.getByText("← Change college code").click();
+    await expect(page.getByTestId("college-code-input")).toBeVisible();
   });
 });

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../api/client";
 import { useAuth } from "../context/AuthContext";
+import ProfileModal from "../components/ProfileModal";
 
 const TABS = ["Classes", "Faculty", "Assignments", "Marks"];
 
@@ -176,6 +177,7 @@ export default function ClerkPage() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [tab, setTab] = useState("Classes");
+  const [showProfile, setShowProfile] = useState(false);
 
   return (
     <div className="min-h-screen bg-stone-50 flex flex-col">
@@ -185,20 +187,26 @@ export default function ClerkPage() {
         <div className="max-w-screen-xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <span className="text-amber-500 text-base leading-none">◈</span>
-            <span className="font-head text-xs font-bold tracking-[0.2em] text-zinc-400 uppercase hidden sm:inline">Marks Portal</span>
+            {user?.college_name && (
+              <span className="font-head text-sm font-bold text-zinc-800">{user.college_name}</span>
+            )}
             <span className="bg-violet-50 text-violet-600 ring-1 ring-violet-200 text-[10px] font-mono font-bold tracking-widest uppercase px-2 py-0.5 rounded-md">Clerk</span>
           </div>
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-zinc-400 font-mono truncate max-w-[120px]">{user?.name}</span>
+          <div className="flex items-center gap-2">
             <button
-              className="text-xs font-mono border border-zinc-200 text-zinc-500 hover:bg-zinc-50 hover:border-zinc-300 px-3 py-1.5 rounded-lg transition"
-              onClick={() => { logout(); navigate("/"); }}
+              onClick={() => setShowProfile(true)}
+              className="flex items-center gap-2 text-xs font-mono text-zinc-500 hover:text-zinc-800 transition truncate max-w-[120px]"
+              title="Profile"
             >
-              Sign out
+              <span className="w-6 h-6 rounded-full bg-violet-100 text-violet-600 flex items-center justify-center text-[10px] font-bold flex-shrink-0">
+                {user?.name?.[0]?.toUpperCase()}
+              </span>
+              <span className="truncate hidden sm:inline">{user?.name}</span>
             </button>
           </div>
         </div>
       </header>
+      {showProfile && <ProfileModal user={user} onClose={() => setShowProfile(false)} />}
 
       {/* ── Tabs ── */}
       <nav className="bg-white border-b border-zinc-200 overflow-x-auto scrollbar-hide">
@@ -252,10 +260,11 @@ function ClassesTab() {
   const [xlsxFile, setXlsxFile]       = useState(null);
   const [csvError, setCsvError]       = useState("");
   const [csvSuccess, setCsvSuccess]   = useState("");
-  const [seatNo, setSeatNo]           = useState("");
-  const [regNo, setRegNo]             = useState("");
-  const [studentName, setStudentName] = useState("");
-  const [studentError, setStudentError] = useState("");
+  const [seatNo, setSeatNo]               = useState("");
+  const [regNo, setRegNo]                 = useState("");
+  const [studentName, setStudentName]     = useState("");
+  const [studentSemester, setStudentSemester] = useState("");
+  const [studentError, setStudentError]   = useState("");
   const [addMode, setAddMode]         = useState("single");
   const [submitting, setSubmitting]   = useState(false);
   const [classSearch, setClassSearch] = useState("");
@@ -279,7 +288,7 @@ function ClassesTab() {
     const res = await api.get(`/clerk/classes/${cls.class_id}/students`);
     setStudents(res.data);
     setXlsxFile(null); setCsvError(""); setCsvSuccess("");
-    setSeatNo(""); setRegNo(""); setStudentName(""); setStudentError("");
+    setSeatNo(""); setRegNo(""); setStudentName(""); setStudentSemester(""); setStudentError("");
     setAddMode("single");
     setModal("students");
   }
@@ -291,8 +300,9 @@ function ClassesTab() {
     try {
       await api.post(`/clerk/classes/${selectedClass.class_id}/students`, {
         seat_no: seatNo, registration_no: regNo, name: studentName,
+        semester: studentSemester !== "" ? Number(studentSemester) : null,
       });
-      setSeatNo(""); setRegNo(""); setStudentName("");
+      setSeatNo(""); setRegNo(""); setStudentName(""); setStudentSemester("");
       const res = await api.get(`/clerk/classes/${selectedClass.class_id}/students`);
       setStudents(res.data);
     } catch (err) { setStudentError(err.response?.data?.error || "Failed"); }
@@ -488,13 +498,14 @@ function ClassesTab() {
           {students.length > 0 && (
             <div className="bg-white border border-zinc-100 rounded-xl overflow-hidden mb-5 max-h-52 overflow-y-auto">
               <table className="w-full text-sm" data-testid="students-table">
-                <THead cols={["Seat No", "Reg No", "Name"]} />
+                <THead cols={["Seat No", "Reg No", "Name", "Sem"]} />
                 <tbody className="divide-y divide-zinc-50">
                   {students.map(s => (
                     <tr key={s.student_id} className="hover:bg-stone-50">
                       <td className="px-5 py-2.5"><CodeTag>{s.seat_no}</CodeTag></td>
                       <td className="px-5 py-2.5"><CodeTag>{s.registration_no}</CodeTag></td>
                       <td className="px-5 py-2.5 text-zinc-800">{s.name}</td>
+                      <td className="px-5 py-2.5 font-mono text-xs text-zinc-400">{s.semester ?? "—"}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -533,6 +544,13 @@ function ClassesTab() {
                   <label className="text-[10px] font-mono tracking-widest text-zinc-400 uppercase">Name</label>
                   <input className="bg-stone-50 border border-zinc-200 rounded-xl font-mono text-sm px-3 py-2.5 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100 transition" value={studentName} onChange={e => setStudentName(e.target.value)} placeholder="Full name" />
                 </div>
+                <div className="flex flex-col gap-1 min-w-[80px]">
+                  <label className="text-[10px] font-mono tracking-widest text-zinc-400 uppercase">Semester</label>
+                  <select className="bg-stone-50 border border-zinc-200 rounded-xl font-mono text-sm px-3 py-2.5 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100 transition cursor-pointer" value={studentSemester} onChange={e => setStudentSemester(e.target.value)}>
+                    <option value="">—</option>
+                    {[1,2,3,4,5,6].map(n => <option key={n} value={n}>{n}</option>)}
+                  </select>
+                </div>
                 <BtnPrimary type="submit" disabled={submitting}>+ Add</BtnPrimary>
                 {studentError && <ErrorMsg msg={studentError} />}
               </form>
@@ -540,7 +558,7 @@ function ClassesTab() {
 
             {addMode === "excel" && (
               <div className="flex flex-col gap-3">
-                <p className="text-xs text-zinc-400 font-mono">Required columns: <CodeTag>seat_no</CodeTag> <CodeTag>registration_no</CodeTag> <CodeTag>name</CodeTag></p>
+                <p className="text-xs text-zinc-400 font-mono">Required: <CodeTag>seat_no</CodeTag> <CodeTag>registration_no</CodeTag> <CodeTag>name</CodeTag> &nbsp;·&nbsp; Optional: <CodeTag>semester</CodeTag></p>
                 <input
                   type="file"
                   accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -801,7 +819,7 @@ function AssignmentsTab() {
   const filtered = assignments.filter(a => {
     const q = search.toLowerCase();
     return (
-      (!q || a.subject_name.toLowerCase().includes(q) || a.class_name.toLowerCase().includes(q) || a.faculty_name.toLowerCase().includes(q)) &&
+      (!q || a.subject_name.toLowerCase().includes(q) || a.class_name.toLowerCase().includes(q) || (a.faculty_name || "").toLowerCase().includes(q)) &&
       (!filterStatus || a.status === filterStatus) &&
       (!filterType || a.mark_type === filterType)
     );
@@ -859,7 +877,7 @@ function AssignmentsTab() {
                     <td className="text-zinc-400 font-mono px-5 py-3.5 whitespace-nowrap text-xs">{a.class_name}</td>
                     <td className="font-medium text-zinc-800 px-5 py-3.5">{a.subject_name}</td>
                     <td className="px-5 py-3.5"><TypePill type={a.mark_type} /></td>
-                    <td className="text-zinc-600 px-5 py-3.5">{a.faculty_name}</td>
+                    <td className="text-zinc-600 px-5 py-3.5">{a.faculty_name ?? <span className="text-zinc-300 font-mono text-xs">Unassigned</span>}</td>
                     <td className="px-5 py-3.5"><StatusPill status={a.status} /></td>
                     <td className="px-5 py-3.5">
                       <div className="flex gap-2 justify-end flex-wrap">
@@ -896,17 +914,55 @@ function AssignmentsTab() {
               </Select>
             </Field>
             <Field label="Subject">
-              <Select value={selectedSubjectId} onChange={e => setSelectedSubjectId(e.target.value)} disabled={!subjects.length} data-testid="assignment-subject-select">
+              <Select value={selectedSubjectId} onChange={e => {
+                const sid = e.target.value;
+                setSelectedSubjectId(sid);
+                // Auto-select the first available mark type
+                const takenInternal = assignments.some(a => a.subject_id === Number(sid) && a.mark_type === "internal" && a.faculty_id);
+                setMarkType(takenInternal ? "external" : "internal");
+              }} disabled={!subjects.length} data-testid="assignment-subject-select">
                 <option value="">Select subject…</option>
-                {subjects.map(s => <option key={s.subject_id} value={s.subject_id}>{s.name} ({s.subject_code}){s.semester ? ` · Sem ${s.semester}` : ""}</option>)}
+                {subjects.map(s => {
+                  const takenInternal = assignments.some(a => a.subject_id === s.subject_id && a.mark_type === "internal" && a.faculty_id);
+                  const takenExternal = assignments.some(a => a.subject_id === s.subject_id && a.mark_type === "external" && a.faculty_id);
+                  const fullyTaken = takenInternal && takenExternal;
+                  return (
+                    <option key={s.subject_id} value={s.subject_id} disabled={fullyTaken} style={{ color: fullyTaken ? "#a1a1aa" : undefined }}>
+                      {s.name} ({s.subject_code}){s.semester ? ` · Sem ${s.semester}` : ""}
+                      {fullyTaken ? " — fully assigned" : ""}
+                    </option>
+                  );
+                })}
               </Select>
             </Field>
-            <Field label="Mark Type">
-              <Select value={markType} onChange={e => setMarkType(e.target.value)} data-testid="assignment-type-select">
-                <option value="internal">Internal</option>
-                <option value="external">External</option>
-              </Select>
-            </Field>
+            {selectedSubjectId && (() => {
+              const takenInternal = assignments.some(a => a.subject_id === Number(selectedSubjectId) && a.mark_type === "internal" && a.faculty_id);
+              const takenExternal = assignments.some(a => a.subject_id === Number(selectedSubjectId) && a.mark_type === "external" && a.faculty_id);
+              return (
+                <Field label="Mark Type">
+                  <div className="flex gap-2">
+                    {[["internal", takenInternal], ["external", takenExternal]].map(([type, taken]) => (
+                      <button
+                        key={type}
+                        type="button"
+                        disabled={taken}
+                        onClick={() => !taken && setMarkType(type)}
+                        className={`flex-1 py-2.5 rounded-xl font-mono text-xs font-medium border transition
+                          ${taken
+                            ? "bg-zinc-50 border-zinc-200 text-zinc-300 cursor-not-allowed line-through"
+                            : markType === type
+                              ? "bg-zinc-900 border-zinc-900 text-white cursor-pointer"
+                              : "bg-stone-50 border-zinc-200 text-zinc-600 hover:border-zinc-400 cursor-pointer"
+                          }`}
+                      >
+                        {type.charAt(0).toUpperCase() + type.slice(1)}
+                        {taken && <span className="ml-1 no-underline" style={{ textDecoration: "none" }}>(assigned)</span>}
+                      </button>
+                    ))}
+                  </div>
+                </Field>
+              );
+            })()}
             <Field label="Faculty">
               <Select value={selectedFacultyId} onChange={e => setSelectedFacultyId(e.target.value)} data-testid="assignment-faculty-select">
                 <option value="">Select faculty…</option>
@@ -946,7 +1002,7 @@ function AssignmentsTab() {
       {modal === "delete" && deleting && (
         <Modal onClose={() => setModal(null)} title="Delete Assignment?">
           <p className="text-sm text-zinc-500 mb-1">
-            Remove <strong className="text-zinc-800">{deleting.subject_name}</strong> ({deleting.mark_type}) from <strong className="text-zinc-800">{deleting.faculty_name}</strong>?
+            Remove <strong className="text-zinc-800">{deleting.subject_name}</strong> ({deleting.mark_type}) from <strong className="text-zinc-800">{deleting.faculty_name ?? "faculty"}</strong>? Marks will be kept.
           </p>
           <p className="text-xs text-zinc-400 font-mono mb-6">All saved marks for this assignment will be deleted.</p>
           <div className="flex gap-3 justify-end">
@@ -1143,3 +1199,4 @@ function MarksTab() {
     </div>
   );
 }
+

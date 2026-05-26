@@ -2,6 +2,7 @@ const ExcelJS = require("exceljs");
 const db = require("../db/queries");
 
 const REQUIRED_COLUMNS = ["seat_no", "registration_no", "name"];
+const OPTIONAL_COLUMNS = ["semester"];
 
 async function importStudents(req, res) {
   const { college_id } = req.user;
@@ -36,17 +37,21 @@ async function importStudents(req, res) {
 
   const colIndex = {};
   REQUIRED_COLUMNS.forEach(col => { colIndex[col] = headers.indexOf(col); });
+  OPTIONAL_COLUMNS.forEach(col => { colIndex[col] = headers.indexOf(col); });
 
   // Collect data rows (skip header row 1)
   const rows = [];
   sheet.eachRow((row, rowNumber) => {
     if (rowNumber === 1) return;
     const vals = row.values.slice(1); // 1-indexed
+    const semRaw = colIndex.semester >= 0 ? vals[colIndex.semester] : null;
+    const semester = semRaw != null && semRaw !== "" ? parseInt(semRaw) : null;
     rows.push({
       rowNumber,
       seat_no: String(vals[colIndex.seat_no] ?? "").trim(),
       registration_no: String(vals[colIndex.registration_no] ?? "").trim(),
       name: String(vals[colIndex.name] ?? "").trim(),
+      semester: !isNaN(semester) ? semester : null,
     });
   });
 
@@ -89,7 +94,7 @@ async function importStudents(req, res) {
     try {
       const student_id = await db.createStudent(
         college_id, Number(class_id),
-        row.seat_no, row.registration_no, row.name
+        row.seat_no, row.registration_no, row.name, row.semester ?? null
       );
       created.push(student_id);
     } catch (err) {
@@ -107,16 +112,17 @@ async function importStudents(req, res) {
 async function addStudent(req, res) {
   const { college_id } = req.user;
   const { class_id } = req.params;
-  const { seat_no, registration_no, name } = req.body;
+  const { seat_no, registration_no, name, semester } = req.body;
   if (!seat_no || !registration_no || !name) {
     return res.status(400).json({ error: "seat_no, registration_no, and name are required" });
   }
+  const sem = semester != null && semester !== "" ? Number(semester) : null;
   try {
     const student_id = await db.createStudent(
       college_id, Number(class_id),
-      seat_no.trim(), registration_no.trim(), name.trim()
+      seat_no.trim(), registration_no.trim(), name.trim(), sem
     );
-    return res.status(201).json({ student_id, seat_no: seat_no.trim(), registration_no: registration_no.trim(), name: name.trim() });
+    return res.status(201).json({ student_id, seat_no: seat_no.trim(), registration_no: registration_no.trim(), name: name.trim(), semester: sem });
   } catch (err) {
     if (err.message && err.message.includes("duplicate") || err.number === 2627 || err.number === 2601) {
       return res.status(409).json({ error: "Seat no or registration no already exists in this class" });

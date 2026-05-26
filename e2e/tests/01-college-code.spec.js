@@ -2,11 +2,11 @@ const { test, expect } = require("@playwright/test");
 
 test.describe("College code entry page", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/login");
   });
 
   test("renders the college code page", async ({ page }) => {
-    await expect(page.getByTestId("college-code-page")).toBeVisible();
+    await expect(page.getByTestId("login-page")).toBeVisible();
     await expect(page.getByTestId("college-code-input")).toBeVisible();
     await expect(page.getByTestId("code-submit")).toBeVisible();
   });
@@ -30,9 +30,9 @@ test.describe("College code entry page", () => {
     expect(value).toBe("ABCDEFGH");
   });
 
-  test("super-admin link navigates to login", async ({ page }) => {
+  test("super-admin link shows credentials form", async ({ page }) => {
     await page.getByText("Super-admin access").click();
-    await expect(page).toHaveURL(/\/login/);
     await expect(page.getByTestId("login-page")).toBeVisible();
+    await expect(page.getByTestId("login-submit")).toBeVisible();
   });
 });

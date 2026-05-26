@@ -1,6 +1,7 @@
 const bcrypt = require("bcryptjs");
 const ExcelJS = require("exceljs");
 const db = require("../db/queries");
+const { audit } = require("../db/audit");
 
 // ─── classes ──────────────────────────────────────────────────────────────────
 
@@ -17,6 +18,7 @@ async function createClass(req, res) {
     return res.status(400).json({ error: "Class name required" });
   }
   const class_id = await db.createClass(college_id, name.trim());
+  audit(req, "CLASS_CREATED", { type: "class", id: class_id, name: name.trim() });
   return res.status(201).json({ class_id, name: name.trim() });
 }
 
@@ -28,6 +30,7 @@ async function updateClass(req, res) {
     return res.status(400).json({ error: "Class name required" });
   }
   await db.updateClass(college_id, Number(class_id), name.trim());
+  audit(req, "CLASS_UPDATED", { type: "class", id: class_id, name: name.trim() });
   return res.json({ message: "Updated" });
 }
 
@@ -35,6 +38,7 @@ async function deleteClass(req, res) {
   const { college_id } = req.user;
   const { class_id } = req.params;
   await db.deleteClass(college_id, Number(class_id));
+  audit(req, "CLASS_DELETED", { type: "class", id: class_id });
   return res.json({ message: "Deleted" });
 }
 
@@ -77,6 +81,7 @@ async function createSubject(req, res) {
   const subject_id = await db.createSubject(
     college_id, Number(class_id), name.trim(), code, semester ? Number(semester) : null, internal_max, external_max
   );
+  audit(req, "SUBJECT_CREATED", { type: "subject", id: subject_id, name: `${name.trim()} (${code})` }, { class_id, semester });
   return res.status(201).json({ subject_id, name: name.trim(), subject_code: code, semester: semester ? Number(semester) : null });
 }
 
@@ -91,6 +96,7 @@ async function updateSubject(req, res) {
     college_id, Number(subject_id), name.trim(), subject_code.trim().toUpperCase(),
     semester ? Number(semester) : null, internal_max, external_max
   );
+  audit(req, "SUBJECT_UPDATED", { type: "subject", id: subject_id, name: `${name.trim()} (${subject_code.trim().toUpperCase()})` }, { semester });
   return res.json({ message: "Updated" });
 }
 
@@ -98,6 +104,7 @@ async function deleteSubject(req, res) {
   const { college_id } = req.user;
   const { subject_id } = req.params;
   await db.deleteSubject(college_id, Number(subject_id));
+  audit(req, "SUBJECT_DELETED", { type: "subject", id: subject_id });
   return res.json({ message: "Deleted" });
 }
 
@@ -121,6 +128,7 @@ async function createFaculty(req, res) {
   }
   const password_hash = await bcrypt.hash(password, 10);
   const user_id = await db.createUser(college_id, "faculty", name.trim(), phone.trim(), password_hash);
+  audit(req, "FACULTY_CREATED", { type: "faculty", id: user_id, name: name.trim() }, { phone: phone.trim() });
   return res.status(201).json({ user_id, name: name.trim(), role: "faculty" });
 }
 
@@ -136,6 +144,7 @@ async function updateFaculty(req, res) {
     return res.status(409).json({ error: "Phone already in use by another user" });
   }
   await db.updateFaculty(college_id, Number(user_id), name.trim(), phone.trim());
+  audit(req, "FACULTY_UPDATED", { type: "faculty", id: user_id, name: name.trim() }, { phone: phone.trim() });
   return res.json({ ok: true });
 }
 
@@ -143,6 +152,7 @@ async function deleteFaculty(req, res) {
   const { college_id } = req.user;
   const { user_id } = req.params;
   await db.deleteFaculty(college_id, Number(user_id));
+  audit(req, "FACULTY_DELETED", { type: "faculty", id: user_id });
   return res.json({ ok: true });
 }
 
@@ -161,6 +171,7 @@ async function createAssignment(req, res) {
     return res.status(400).json({ error: "faculty_id, subject_id, and mark_type (internal|external) required" });
   }
   const assignment_id = await db.createAssignment(college_id, Number(faculty_id), Number(subject_id), mark_type);
+  audit(req, "ASSIGNMENT_CREATED", { type: "assignment", id: assignment_id }, { faculty_id, subject_id, mark_type });
   return res.status(201).json({ assignment_id });
 }
 
@@ -177,6 +188,7 @@ async function updateAssignment(req, res) {
     return res.status(400).json({ error: "Cannot edit a locked assignment" });
   }
   await db.updateAssignmentFaculty(college_id, Number(assignment_id), Number(faculty_id));
+  audit(req, "ASSIGNMENT_UPDATED", { type: "assignment", id: assignment_id, name: assignment.subject_name }, { old_faculty_id: assignment.faculty_id, new_faculty_id: faculty_id });
   return res.json({ ok: true });
 }
 
@@ -189,6 +201,7 @@ async function deleteAssignment(req, res) {
     return res.status(400).json({ error: "Cannot delete a locked assignment" });
   }
   await db.deleteAssignment(college_id, Number(assignment_id));
+  audit(req, "ASSIGNMENT_UNASSIGNED", { type: "assignment", id: assignment_id, name: assignment.subject_name }, { mark_type: assignment.mark_type, removed_faculty_id: assignment.faculty_id });
   return res.json({ ok: true });
 }
 
@@ -203,6 +216,7 @@ async function lockAssignment(req, res) {
     return res.status(400).json({ error: "Already locked" });
   }
   await db.updateAssignmentStatus(college_id, Number(assignment_id), "locked");
+  audit(req, "ASSIGNMENT_LOCKED", { type: "assignment", id: assignment_id, name: assignment.subject_name }, { mark_type: assignment.mark_type });
   return res.json({ message: "Locked" });
 }
 
@@ -253,6 +267,7 @@ async function downloadMarks(req, res) {
   const filename = `${assignment.subject_name}_${assignment.mark_type}.xlsx`
     .replace(/[^a-z0-9_.-]/gi, "_");
 
+  audit(req, "MARKS_DOWNLOADED", { type: "assignment", id: assignment_id, name: assignment.subject_name }, { mark_type: assignment.mark_type });
   res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
   res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
   await workbook.xlsx.write(res);

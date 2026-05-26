@@ -8,10 +8,11 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-app.use("/api/auth", require("./routes/auth"));
+app.use("/api/auth",        require("./routes/auth"));
 app.use("/api/super-admin", require("./routes/superAdmin"));
-app.use("/api/clerk", require("./routes/clerk"));
-app.use("/api/faculty", require("./routes/faculty"));
+app.use("/api/clerk",       require("./routes/clerk"));
+app.use("/api/faculty",     require("./routes/faculty"));
+app.use("/api/profile",     require("./routes/profile"));
 
 // Serve React build
 const publicDir = path.join(__dirname, "public");

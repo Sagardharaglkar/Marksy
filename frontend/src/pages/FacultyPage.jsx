@@ -2,6 +2,7 @@ import { useEffect, useReducer, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import api from "../api/client";
 import { useAuth } from "../context/AuthContext";
+import ProfileModal from "../components/ProfileModal";
 
 function marksReducer(state, action) {
   switch (action.type) {
@@ -57,6 +58,7 @@ export default function FacultyPage() {
   const [reopening, setReopening]     = useState(false);
   const [saveMsg, setSaveMsg]         = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
   const autoSaveTimer = useRef(null);
 
   useEffect(() => {
@@ -171,7 +173,7 @@ export default function FacultyPage() {
     <div className="min-h-screen bg-stone-50 flex flex-col">
 
       {/* ── Header ── */}
-      <header className="sticky top-0 z-20 bg-white border-b border-zinc-200">
+      <header className="sticky top-0 z-30 bg-white border-b border-zinc-200">
         <div className="max-w-screen-xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <button
@@ -184,20 +186,26 @@ export default function FacultyPage() {
               </svg>
             </button>
             <span className="text-amber-500 text-base leading-none">◈</span>
-            <span className="font-head text-xs font-bold tracking-[0.2em] text-zinc-400 uppercase hidden sm:inline">Marks Portal</span>
+            {user?.college_name && (
+              <span className="font-head text-sm font-bold text-zinc-800">{user.college_name}</span>
+            )}
             <span className="bg-sky-50 text-sky-600 ring-1 ring-sky-200 text-[10px] font-mono font-bold tracking-widest uppercase px-2 py-0.5 rounded-md">Faculty</span>
           </div>
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-zinc-400 font-mono truncate max-w-[120px]">{user?.name}</span>
+          <div className="flex items-center gap-2">
             <button
-              className="text-xs font-mono border border-zinc-200 text-zinc-500 hover:bg-zinc-50 hover:border-zinc-300 px-3 py-1.5 rounded-lg transition"
-              onClick={() => { logout(); navigate("/"); }}
+              onClick={() => setShowProfile(true)}
+              className="flex items-center gap-2 text-xs font-mono text-zinc-500 hover:text-zinc-800 transition truncate max-w-[120px]"
+              title="Profile"
             >
-              Sign out
+              <span className="w-6 h-6 rounded-full bg-sky-100 text-sky-600 flex items-center justify-center text-[10px] font-bold flex-shrink-0">
+                {user?.name?.[0]?.toUpperCase()}
+              </span>
+              <span className="truncate hidden sm:inline">{user?.name}</span>
             </button>
           </div>
         </div>
       </header>
+      {showProfile && <ProfileModal user={user} onClose={() => setShowProfile(false)} />}
 
       <div className="flex-1 flex flex-col lg:grid lg:grid-cols-[280px_1fr]">
 

@@ -1,5 +1,6 @@
 const bcrypt = require("bcryptjs");
 const db = require("../db/queries");
+const { audit } = require("../db/audit");
 
 async function editClerk(req, res) {
   const { college_id, user_id } = req.params;
@@ -15,12 +16,14 @@ async function editClerk(req, res) {
   }
 
   await db.updateClerk(Number(college_id), Number(user_id), name.trim(), phone.trim());
+  audit(req, "CLERK_UPDATED", { type: "clerk", id: user_id, name: name.trim() }, { college_id, phone: phone.trim() });
   return res.json({ ok: true });
 }
 
 async function removeClerk(req, res) {
   const { college_id, user_id } = req.params;
   await db.deleteClerk(Number(college_id), Number(user_id));
+  audit(req, "CLERK_DELETED", { type: "clerk", id: user_id }, { college_id });
   return res.json({ ok: true });
 }
 
@@ -31,6 +34,7 @@ async function blockClerk(req, res) {
     return res.status(400).json({ error: "is_blocked (boolean) required" });
   }
   await db.setClerkBlocked(Number(college_id), Number(user_id), is_blocked);
+  audit(req, is_blocked ? "CLERK_BLOCKED" : "CLERK_UNBLOCKED", { type: "clerk", id: user_id }, { college_id });
   return res.json({ ok: true, is_blocked });
 }
 
@@ -41,6 +45,7 @@ async function toggleCollegeActive(req, res) {
     return res.status(400).json({ error: "is_active (boolean) required" });
   }
   await db.setCollegeActive(Number(college_id), is_active);
+  audit(req, is_active ? "COLLEGE_ACTIVATED" : "COLLEGE_DEACTIVATED", { type: "college", id: college_id }, {});
   return res.json({ ok: true, is_active });
 }
 
@@ -71,6 +76,7 @@ async function createCollege(req, res) {
   }
 
   const college_id = await db.createCollege(name.trim(), college_code);
+  audit(req, "COLLEGE_CREATED", { type: "college", id: college_id, name: name.trim() }, { college_code });
   return res.status(201).json({ college_id, college_code, name: name.trim() });
 }
 
@@ -103,6 +109,7 @@ async function createFirstClerk(req, res) {
 
   const password_hash = await bcrypt.hash(password, 10);
   const user_id = await db.createUser(Number(college_id), "clerk", name.trim(), phone.trim(), password_hash);
+  audit(req, "CLERK_CREATED", { type: "clerk", id: user_id, name: name.trim() }, { college_id, phone: phone.trim() });
   return res.status(201).json({ user_id, name: name.trim(), role: "clerk" });
 }
 

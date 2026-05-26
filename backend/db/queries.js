@@ -324,10 +324,10 @@ async function deleteSubject(college_id, subject_id) {
 
 async function getStudentsByClass(college_id, class_id) {
   const result = await query(
-    `SELECT student_id, seat_no, registration_no, name
+    `SELECT student_id, seat_no, registration_no, name, semester
      FROM students
      WHERE college_id = @college_id AND class_id = @class_id
-     ORDER BY seat_no`,
+     ORDER BY semester, seat_no`,
     {
       college_id: { type: sql.Int, value: college_id },
       class_id: { type: sql.Int, value: class_id },
@@ -336,17 +336,18 @@ async function getStudentsByClass(college_id, class_id) {
   return result.recordset;
 }
 
-async function createStudent(college_id, class_id, seat_no, registration_no, name) {
+async function createStudent(college_id, class_id, seat_no, registration_no, name, semester) {
   const result = await query(
-    `INSERT INTO students (college_id, class_id, seat_no, registration_no, name)
+    `INSERT INTO students (college_id, class_id, seat_no, registration_no, name, semester)
      OUTPUT INSERTED.student_id
-     VALUES (@college_id, @class_id, @seat_no, @registration_no, @name)`,
+     VALUES (@college_id, @class_id, @seat_no, @registration_no, @name, @semester)`,
     {
-      college_id: { type: sql.Int, value: college_id },
-      class_id: { type: sql.Int, value: class_id },
-      seat_no: { type: sql.NVarChar(50), value: seat_no },
-      registration_no: { type: sql.NVarChar(50), value: registration_no },
-      name: { type: sql.NVarChar(255), value: name },
+      college_id:      { type: sql.Int,           value: college_id },
+      class_id:        { type: sql.Int,           value: class_id },
+      seat_no:         { type: sql.NVarChar(50),  value: seat_no },
+      registration_no: { type: sql.NVarChar(50),  value: registration_no },
+      name:            { type: sql.NVarChar(255), value: name },
+      semester:        { type: sql.Int,           value: semester ?? null },
     }
   );
   return result.recordset[0].student_id;
@@ -381,7 +382,7 @@ async function getAssignmentsByCollege(college_id) {
      FROM assignments a
      JOIN subjects s ON a.subject_id = s.subject_id
      JOIN classes c ON s.class_id = c.class_id
-     JOIN users u ON a.faculty_id = u.user_id
+     LEFT JOIN users u ON a.faculty_id = u.user_id
      WHERE a.college_id = @college_id
      ORDER BY c.name, s.name, a.mark_type`,
     { college_id: { type: sql.Int, value: college_id } }
@@ -446,11 +447,13 @@ async function updateAssignmentFaculty(college_id, assignment_id, faculty_id) {
 }
 
 async function deleteAssignment(college_id, assignment_id) {
+  // "Delete" = unassign faculty; marks and the assignment row are kept
   await query(
-    `DELETE FROM assignments WHERE assignment_id = @assignment_id AND college_id = @college_id`,
+    `UPDATE assignments SET faculty_id = NULL, status = 'open'
+     WHERE assignment_id = @assignment_id AND college_id = @college_id`,
     {
       assignment_id: { type: sql.Int, value: assignment_id },
-      college_id: { type: sql.Int, value: college_id },
+      college_id:    { type: sql.Int, value: college_id },
     }
   );
 }
@@ -463,7 +466,10 @@ async function getMarksByAssignment(college_id, assignment_id) {
             s.seat_no, s.registration_no, s.name AS student_name
      FROM marks m
      JOIN students s ON m.student_id = s.student_id
+     JOIN assignments a ON m.assignment_id = a.assignment_id
+     JOIN subjects sub ON a.subject_id = sub.subject_id
      WHERE m.college_id = @college_id AND m.assignment_id = @assignment_id
+       AND (sub.semester IS NULL OR s.semester = sub.semester OR s.semester IS NULL)
      ORDER BY s.seat_no`,
     {
       college_id: { type: sql.Int, value: college_id },
@@ -494,12 +500,16 @@ async function upsertMark(college_id, assignment_id, student_id, value) {
 }
 
 async function seedMarksForAssignment(college_id, assignment_id, class_id) {
-  // Insert null-value rows for all students in the class who don't yet have a mark row
+  // Insert null-value rows only for students matching the assignment's semester
+  // (if the subject has no semester set, seed all students in the class)
   await query(
     `INSERT INTO marks (college_id, assignment_id, student_id)
      SELECT @college_id, @assignment_id, s.student_id
      FROM students s
+     JOIN assignments a ON a.assignment_id = @assignment_id
+     JOIN subjects sub ON a.subject_id = sub.subject_id
      WHERE s.class_id = @class_id AND s.college_id = @college_id
+       AND (sub.semester IS NULL OR s.semester = sub.semester OR s.semester IS NULL)
        AND NOT EXISTS (
          SELECT 1 FROM marks m
          WHERE m.assignment_id = @assignment_id AND m.student_id = s.student_id
@@ -508,6 +518,31 @@ async function seedMarksForAssignment(college_id, assignment_id, class_id) {
       college_id: { type: sql.Int, value: college_id },
       assignment_id: { type: sql.Int, value: assignment_id },
       class_id: { type: sql.Int, value: class_id },
+    }
+  );
+}
+
+async function getUserById(user_id, college_id) {
+  const result = await query(
+    `SELECT user_id, college_id, role, name, phone, password_hash
+     FROM users
+     WHERE user_id = @user_id AND (college_id = @college_id OR college_id IS NULL)`,
+    {
+      user_id:    { type: sql.Int, value: user_id },
+      college_id: { type: sql.Int, value: college_id ?? null },
+    }
+  );
+  return result.recordset[0] || null;
+}
+
+async function updateUserPassword(user_id, college_id, password_hash) {
+  await query(
+    `UPDATE users SET password_hash = @password_hash
+     WHERE user_id = @user_id AND (college_id = @college_id OR college_id IS NULL)`,
+    {
+      user_id:       { type: sql.Int,           value: user_id },
+      college_id:    { type: sql.Int,           value: college_id ?? null },
+      password_hash: { type: sql.NVarChar(255), value: password_hash },
     }
   );
 }
@@ -551,4 +586,5 @@ module.exports = {
   getMarksByAssignment,
   upsertMark,
   seedMarksForAssignment,
+  updateUserPassword,
 };

@@ -11,17 +11,7 @@ const { getPool, sql } = require("../db/connection");
 // ─── Put your query here ──────────────────────────────────────────────────────
 
 const QUERY = `
-  IF NOT EXISTS (
-  SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
-  WHERE TABLE_NAME = 'subjects' AND COLUMN_NAME = 'semester'
-)
-BEGIN
-  ALTER TABLE subjects ADD semester INT NULL;
-  PRINT 'Added column: subjects.semester';
-END
-ELSE
-  PRINT 'Column already exists: subjects.semester';
-
+select * from  audit_logs
 `;
 
 // For parameterised INSERT/UPDATE/DELETE, put values here.
