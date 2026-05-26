@@ -5,6 +5,9 @@ on:
     branches:
       - main
 
+permissions:
+  contents: write
+
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
@@ -50,9 +53,18 @@ jobs:
           mv backend/* .
           rm -rf backend
 
+          # Drop node_modules — server runs npm install itself
+          rm -rf node_modules
+
+          # Write a .gitignore so node_modules never gets committed
+          echo "node_modules/" > .gitignore
+          echo ".env" >> .gitignore
+
           # Stage everything
           git add -A
           git commit -m "deploy: build from ${GITHUB_SHA::7}"
 
           # Force-push to the backend branch
           git push origin backend-tmp:backend --force
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
