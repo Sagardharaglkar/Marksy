@@ -9,7 +9,9 @@ require("dotenv").config();
 const app = express();
 
 // Security headers
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: false, // React build uses inline scripts; let the CDN/nginx handle CSP
+}));
 
 // CORS — only allow configured origins
 const allowedOrigins = process.env.ALLOWED_ORIGINS

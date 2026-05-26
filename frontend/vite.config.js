@@ -10,5 +10,14 @@ export default defineConfig({
   build: {
     outDir: '../backend/public',
     emptyOutDir: true,
+  },
+  server: {
+    proxy: {
+      '/api': {
+        target: 'http://192.168.1.6:5000',
+        changeOrigin: true,
+        secure: false,
+      }
+    }
   }
 })
