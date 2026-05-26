@@ -14,8 +14,8 @@ router.post("/classes", c.createClass);
 router.put("/classes/:class_id", c.updateClass);
 router.delete("/classes/:class_id", c.deleteClass);
 
-// subjects (nested under class)
-router.get("/classes/:class_id/subjects", c.listSubjects);
+// subjects (nested under class) — supports ?semester=N query param for filtering
+router.get("/classes/:class_id/subjects", c.listSubjectsBySemester);
 router.post("/classes/:class_id/subjects", c.createSubject);
 router.put("/subjects/:subject_id", c.updateSubject);
 router.delete("/subjects/:subject_id", c.deleteSubject);

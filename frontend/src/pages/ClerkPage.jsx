@@ -189,7 +189,7 @@ export default function ClerkPage() {
             <span className="bg-violet-50 text-violet-600 ring-1 ring-violet-200 text-[10px] font-mono font-bold tracking-widest uppercase px-2 py-0.5 rounded-md">Clerk</span>
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-xs text-zinc-400 font-mono hidden sm:inline truncate max-w-[140px]">{user?.name}</span>
+            <span className="text-xs text-zinc-400 font-mono truncate max-w-[120px]">{user?.name}</span>
             <button
               className="text-xs font-mono border border-zinc-200 text-zinc-500 hover:bg-zinc-50 hover:border-zinc-300 px-3 py-1.5 rounded-lg transition"
               onClick={() => { logout(); navigate("/"); }}
@@ -245,6 +245,7 @@ function ClassesTab() {
   const [classError, setClassError] = useState("");
   const [subjectName, setSubjectName]   = useState("");
   const [subjectCode, setSubjectCode]   = useState("");
+  const [subjectSemester, setSubjectSemester] = useState("");
   const [internalMax, setInternalMax]   = useState("");
   const [externalMax, setExternalMax]   = useState("");
   const [subjectError, setSubjectError] = useState("");
@@ -269,7 +270,7 @@ function ClassesTab() {
     setSelectedClass(cls);
     const res = await api.get(`/clerk/classes/${cls.class_id}/subjects`);
     setSubjects(res.data);
-    setSubjectName(""); setSubjectCode(""); setInternalMax(""); setExternalMax(""); setSubjectError("");
+    setSubjectName(""); setSubjectCode(""); setSubjectSemester(""); setInternalMax(""); setExternalMax(""); setSubjectError("");
     setModal("subjects");
   }
 
@@ -324,11 +325,12 @@ function ClassesTab() {
     try {
       await api.post(`/clerk/classes/${selectedClass.class_id}/subjects`, {
         name: subjectName.trim(), subject_code: subjectCode.trim(),
+        semester: subjectSemester ? Number(subjectSemester) : null,
         internal_max: internalMax || null, external_max: externalMax || null,
       });
       const res = await api.get(`/clerk/classes/${selectedClass.class_id}/subjects`);
       setSubjects(res.data);
-      setSubjectName(""); setSubjectCode(""); setInternalMax(""); setExternalMax("");
+      setSubjectName(""); setSubjectCode(""); setSubjectSemester(""); setInternalMax(""); setExternalMax("");
     } catch (err) { setSubjectError(err.response?.data?.error || "Failed"); }
     finally { setSubmitting(false); }
   }
@@ -444,12 +446,13 @@ function ClassesTab() {
             <div className="bg-white border border-zinc-100 rounded-xl overflow-hidden mb-5">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm" data-testid="subjects-table">
-                  <THead cols={["Name", "Code", ""]} />
+                  <THead cols={["Name", "Code", "Sem", ""]} />
                   <tbody className="divide-y divide-zinc-50">
                     {subjects.map(s => (
                       <tr key={s.subject_id} className="hover:bg-stone-50 transition">
                         <td className="px-5 py-2.5 text-zinc-800">{s.name}</td>
                         <td className="px-5 py-2.5"><CodeTag>{s.subject_code}</CodeTag></td>
+                        <td className="px-5 py-2.5 text-zinc-400 font-mono text-xs">{s.semester ?? "—"}</td>
                         <td className="px-5 py-2.5">
                           <button className="font-mono text-xs bg-red-50 text-red-500 border border-red-200 hover:bg-red-100 px-3 py-1 rounded-lg transition cursor-pointer" onClick={() => handleDeleteSubject(s.subject_id)}>Remove</button>
                         </td>
@@ -465,6 +468,10 @@ function ClassesTab() {
             <form onSubmit={handleSaveSubject} className="flex flex-wrap gap-3 items-end">
               <input className="bg-stone-50 border border-zinc-200 rounded-xl font-mono text-sm px-3 py-2.5 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100 transition flex-1 min-w-[140px]" value={subjectName} onChange={e => setSubjectName(e.target.value)} placeholder="Subject name" data-testid="subject-name-input" />
               <input className="bg-stone-50 border border-zinc-200 rounded-xl font-mono text-sm px-3 py-2.5 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100 transition w-32" value={subjectCode} onChange={e => setSubjectCode(e.target.value.toUpperCase())} placeholder="PHY101" maxLength={20} data-testid="subject-code-input" />
+              <select className="bg-stone-50 border border-zinc-200 rounded-xl font-mono text-sm px-3 py-2.5 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100 transition w-28 cursor-pointer" value={subjectSemester} onChange={e => setSubjectSemester(e.target.value)}>
+                <option value="">Sem</option>
+                {[1,2,3,4,5,6,7,8].map(s => <option key={s} value={s}>Sem {s}</option>)}
+              </select>
               <BtnPrimary type="submit" disabled={submitting} data-testid="add-subject-btn">+ Add</BtnPrimary>
             </form>
             <ErrorMsg msg={subjectError} />
@@ -717,6 +724,7 @@ function AssignmentsTab() {
   const [editing, setEditing]                 = useState(null);
   const [deleting, setDeleting]               = useState(null);
   const [selectedClassId, setSelectedClassId] = useState("");
+  const [selectedSemester, setSelectedSemester] = useState("");
   const [subjects, setSubjects]               = useState([]);
   const [selectedSubjectId, setSelectedSubjectId] = useState("");
   const [selectedFacultyId, setSelectedFacultyId] = useState("");
@@ -739,13 +747,23 @@ function AssignmentsTab() {
   useEffect(() => { fetchAll(); }, []);
 
   async function onClassChange(e) {
-    setSelectedClassId(e.target.value); setSelectedSubjectId("");
-    if (!e.target.value) { setSubjects([]); return; }
+    setSelectedClassId(e.target.value); setSelectedSubjectId(""); setSelectedSemester(""); setSubjects([]);
+    if (!e.target.value) return;
     const res = await api.get(`/clerk/classes/${e.target.value}/subjects`);
     setSubjects(res.data);
   }
 
-  function openAdd() { setSelectedClassId(""); setSelectedSubjectId(""); setSelectedFacultyId(""); setMarkType("internal"); setSubjects([]); setError(""); setModal("add"); }
+  async function onSemesterChange(e) {
+    setSelectedSemester(e.target.value); setSelectedSubjectId("");
+    if (!selectedClassId) return;
+    const url = e.target.value
+      ? `/clerk/classes/${selectedClassId}/subjects?semester=${e.target.value}`
+      : `/clerk/classes/${selectedClassId}/subjects`;
+    const res = await api.get(url);
+    setSubjects(res.data);
+  }
+
+  function openAdd() { setSelectedClassId(""); setSelectedSemester(""); setSelectedSubjectId(""); setSelectedFacultyId(""); setMarkType("internal"); setSubjects([]); setError(""); setModal("add"); }
   function openEdit(a) { setEditing(a); setSelectedFacultyId(String(a.faculty_id)); setError(""); setModal("edit"); }
   function openDelete(a) { setDeleting(a); setModal("delete"); }
 
@@ -871,10 +889,16 @@ function AssignmentsTab() {
                 {classes.map(c => <option key={c.class_id} value={c.class_id}>{c.name}</option>)}
               </Select>
             </Field>
+            <Field label="Semester">
+              <Select value={selectedSemester} onChange={onSemesterChange} disabled={!selectedClassId}>
+                <option value="">All semesters</option>
+                {[1,2,3,4,5,6,7,8].map(s => <option key={s} value={s}>Semester {s}</option>)}
+              </Select>
+            </Field>
             <Field label="Subject">
               <Select value={selectedSubjectId} onChange={e => setSelectedSubjectId(e.target.value)} disabled={!subjects.length} data-testid="assignment-subject-select">
                 <option value="">Select subject…</option>
-                {subjects.map(s => <option key={s.subject_id} value={s.subject_id}>{s.name} ({s.subject_code})</option>)}
+                {subjects.map(s => <option key={s.subject_id} value={s.subject_id}>{s.name} ({s.subject_code}){s.semester ? ` · Sem ${s.semester}` : ""}</option>)}
               </Select>
             </Field>
             <Field label="Mark Type">

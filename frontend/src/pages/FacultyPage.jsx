@@ -1,4 +1,4 @@
-import { useEffect, useReducer, useState } from "react";
+import { useEffect, useReducer, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import api from "../api/client";
 import { useAuth } from "../context/AuthContext";
@@ -57,34 +57,65 @@ export default function FacultyPage() {
   const [reopening, setReopening]     = useState(false);
   const [saveMsg, setSaveMsg]         = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const autoSaveTimer = useRef(null);
 
   useEffect(() => {
     api.get("/faculty/assignments").then(res => {
       setAssignments(res.data);
       setLoading(false);
-      if (res.data.length === 1) openAssignment(res.data[0]);
     });
   }, []);
 
-  // When browser back is pressed while viewing marks, go back to subject list
+  // Auto-save marks 1.5s after the faculty stops typing
   useEffect(() => {
-    if (location.hash !== "#marks") {
+    if (!selected || !marksData || saving) return;
+    const isLocked = ["locked", "submitted"].includes(marksData?.assignment?.status);
+    if (isLocked) return;
+
+    clearTimeout(autoSaveTimer.current);
+    autoSaveTimer.current = setTimeout(async () => {
+      setSaving(true);
+      setSaveMsg("");
+      try {
+        const marks = Object.entries(markValues).map(([student_id, value]) => ({
+          student_id: Number(student_id),
+          value: value === "" ? null : Number(value),
+        }));
+        await api.post(`/faculty/assignments/${selected.assignment_id}/marks`, { marks });
+        setSaveMsg("Auto-saved");
+        setTimeout(() => setSaveMsg(""), 2000);
+      } catch {
+        setSaveMsg("Auto-save failed");
+      } finally {
+        setSaving(false);
+      }
+    }, 1500);
+
+    return () => clearTimeout(autoSaveTimer.current);
+  }, [markValues]);
+
+  // When browser back is pressed while viewing marks, go back to subject list.
+  // Only applies when there are multiple assignments (hasSidebar).
+  useEffect(() => {
+    if (assignments.length > 1 && location.hash !== "#marks") {
       setSelected(null);
       setMarksData(null);
     }
-  }, [location.hash]);
-
-  function goBack() {
-    navigate(-1);
-  }
+  }, [location.hash, assignments.length]);
 
   async function openAssignment(a) {
-    if (assignments.length > 1) navigate("#marks");
+    navigate("#marks");
     setSelected(a); setMarksLoading(true); setSaveMsg(""); setSidebarOpen(false);
     const res = await api.get(`/faculty/assignments/${a.assignment_id}/marks`);
     setMarksData(res.data);
     dispatch({ type: "SET", marks: res.data.marks });
     setMarksLoading(false);
+  }
+
+  function goBack() {
+    setSelected(null);
+    setMarksData(null);
+    navigate("/faculty", { replace: true });
   }
 
   async function handleSave() {
@@ -132,9 +163,9 @@ export default function FacultyPage() {
     } finally { setReopening(false); }
   }
 
-  const isLocked    = marksData?.assignment?.status === "locked";
+  const isLocked    = marksData?.assignment?.status === "locked" || marksData?.assignment?.status === "submitted";
   const isSubmitted = marksData?.assignment?.status === "submitted";
-  const hasSidebar  = assignments.length !== 1;
+  const hasSidebar  = assignments.length > 1;
 
   return (
     <div className="min-h-screen bg-stone-50 flex flex-col">
@@ -143,23 +174,21 @@ export default function FacultyPage() {
       <header className="sticky top-0 z-20 bg-white border-b border-zinc-200">
         <div className="max-w-screen-xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            {hasSidebar && (
-              <button
-                className="lg:hidden w-8 h-8 flex items-center justify-center rounded-lg hover:bg-zinc-100 transition text-zinc-500"
-                onClick={() => setSidebarOpen(o => !o)}
-                aria-label="Toggle assignments"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
-                </svg>
-              </button>
-            )}
+            <button
+              className="lg:hidden w-8 h-8 flex items-center justify-center rounded-lg hover:bg-zinc-100 transition text-zinc-500"
+              onClick={() => setSidebarOpen(o => !o)}
+              aria-label="Toggle assignments"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
             <span className="text-amber-500 text-base leading-none">◈</span>
             <span className="font-head text-xs font-bold tracking-[0.2em] text-zinc-400 uppercase hidden sm:inline">Marks Portal</span>
             <span className="bg-sky-50 text-sky-600 ring-1 ring-sky-200 text-[10px] font-mono font-bold tracking-widest uppercase px-2 py-0.5 rounded-md">Faculty</span>
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-xs text-zinc-400 font-mono hidden sm:inline truncate max-w-[140px]">{user?.name}</span>
+            <span className="text-xs text-zinc-400 font-mono truncate max-w-[120px]">{user?.name}</span>
             <button
               className="text-xs font-mono border border-zinc-200 text-zinc-500 hover:bg-zinc-50 hover:border-zinc-300 px-3 py-1.5 rounded-lg transition"
               onClick={() => { logout(); navigate("/"); }}
@@ -170,72 +199,71 @@ export default function FacultyPage() {
         </div>
       </header>
 
-      <div className={`flex-1 flex flex-col ${hasSidebar ? "lg:grid lg:grid-cols-[280px_1fr]" : ""}`}>
+      <div className="flex-1 flex flex-col lg:grid lg:grid-cols-[280px_1fr]">
 
         {/* ── Sidebar ── */}
-        {hasSidebar && (
-          <>
-            {/* Mobile overlay */}
-            {sidebarOpen && (
-              <div
-                className="fixed inset-0 z-10 bg-black/20 lg:hidden"
-                onClick={() => setSidebarOpen(false)}
-              />
-            )}
-            <aside className={`
-              fixed inset-y-0 left-0 z-20 w-72 bg-white border-r border-zinc-200 flex flex-col pt-16 pb-4
-              transform transition-transform duration-200
-              ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
-              lg:static lg:translate-x-0 lg:w-auto lg:pt-0
-            `}>
-              <div className="px-4 py-5 border-b border-zinc-100">
-                <h2 className="font-head text-base font-bold text-zinc-800">Assignments</h2>
-              </div>
-              <div className="flex-1 overflow-y-auto p-3">
-                {loading ? (
-                  <p className="text-sm text-zinc-400 px-2 py-4">Loading…</p>
-                ) : assignments.length === 0 ? (
-                  <p className="text-sm text-zinc-400 border-2 border-dashed border-zinc-200 rounded-xl py-8 text-center mx-2">No assignments.</p>
-                ) : (
-                  <div className="flex flex-col gap-1.5">
-                    {assignments.map(a => (
-                      <button
-                        key={a.assignment_id}
-                        onClick={() => openAssignment(a)}
-                        className={`w-full text-left rounded-xl px-3 py-3 transition border ${
-                          selected?.assignment_id === a.assignment_id
-                            ? "border-amber-300 bg-amber-50"
-                            : "border-transparent hover:bg-zinc-50 hover:border-zinc-200"
-                        }`}
-                        data-testid={`assignment-item-${a.assignment_id}`}
-                      >
-                        <div className="flex items-center justify-between gap-2 mb-1.5">
-                          <span className="font-medium text-zinc-800 text-sm truncate leading-tight">{a.subject_name}</span>
-                          <TypePill type={a.mark_type} />
-                        </div>
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-xs text-zinc-400 truncate">{a.class_name}</span>
-                          <StatusPill status={a.status} />
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </aside>
-          </>
-        )}
+        <>
+          {/* Mobile overlay */}
+          {sidebarOpen && (
+            <div
+              className="fixed inset-0 z-10 bg-black/20 lg:hidden"
+              onClick={() => setSidebarOpen(false)}
+            />
+          )}
+          <aside className={`
+            fixed inset-y-0 left-0 z-20 w-72 bg-white border-r border-zinc-200 flex flex-col pt-16 pb-4
+            transform transition-transform duration-200
+            ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
+            lg:static lg:translate-x-0 lg:w-auto lg:pt-0
+          `}>
+            <div className="px-4 py-5 border-b border-zinc-100">
+              <h2 className="font-head text-base font-bold text-zinc-800">Assignments</h2>
+            </div>
+            <div className="flex-1 overflow-y-auto p-3">
+              {loading ? (
+                <p className="text-sm text-zinc-400 px-2 py-4">Loading…</p>
+              ) : assignments.length === 0 ? (
+                <p className="text-sm text-zinc-400 border-2 border-dashed border-zinc-200 rounded-xl py-8 text-center mx-2">No assignments.</p>
+              ) : (
+                <div className="flex flex-col gap-1.5">
+                  {assignments.map(a => (
+                    <button
+                      key={a.assignment_id}
+                      onClick={() => openAssignment(a)}
+                      className={`w-full text-left rounded-xl px-3 py-3 transition border ${
+                        selected?.assignment_id === a.assignment_id
+                          ? "border-amber-300 bg-amber-50"
+                          : "border-transparent hover:bg-zinc-50 hover:border-zinc-200"
+                      }`}
+                      data-testid={`assignment-item-${a.assignment_id}`}
+                    >
+                      <div className="flex items-center justify-between gap-2 mb-1.5">
+                        <span className="font-medium text-zinc-800 text-sm truncate leading-tight">{a.subject_name}</span>
+                        <TypePill type={a.mark_type} />
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs text-zinc-400 truncate">{a.class_name}{a.semester ? ` · Sem ${a.semester}` : ""}</span>
+                        <StatusPill status={a.status} />
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </aside>
+        </>
 
         {/* ── Detail Panel ── */}
         <main className="flex-1 min-w-0 p-4 sm:p-6">
           {/* Mobile subject list — shown when multiple assignments and none selected */}
-          {hasSidebar && !selected && (
+          {/* Mobile: assignment card list — always shown when nothing selected */}
+          {!selected && (
             <div className="lg:hidden">
               <h2 className="font-head text-lg font-bold text-zinc-900 mb-4">Your Assignments</h2>
               {loading ? (
                 <p className="text-sm text-zinc-400 py-8">Loading…</p>
               ) : assignments.length === 0 ? (
-                <p className="text-sm text-zinc-400 border-2 border-dashed border-zinc-200 rounded-2xl py-10 text-center">No assignments.</p>
+                <p className="text-sm text-zinc-400 border-2 border-dashed border-zinc-200 rounded-2xl py-10 text-center">No assignments assigned to you.</p>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {assignments.map(a => (
@@ -249,7 +277,7 @@ export default function FacultyPage() {
                         <TypePill type={a.mark_type} />
                       </div>
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-xs text-zinc-400">{a.class_name}</span>
+                        <span className="text-xs text-zinc-400">{a.class_name}{a.semester ? ` · Sem ${a.semester}` : ""}</span>
                         <StatusPill status={a.status} />
                       </div>
                     </button>
@@ -259,18 +287,19 @@ export default function FacultyPage() {
             </div>
           )}
 
-          {/* Desktop empty state — shown when sidebar exists but nothing selected */}
-          {hasSidebar && !selected && (
+          {/* Desktop: empty state when nothing selected */}
+          {!selected && (
             <div className="hidden lg:flex flex-col items-center justify-center h-full min-h-48 text-center border-2 border-dashed border-zinc-200 rounded-2xl bg-white">
-              <p className="text-sm text-zinc-400 mb-1">Select an assignment to enter marks</p>
-              <p className="text-xs text-zinc-300">Use the sidebar to choose one</p>
-            </div>
-          )}
-
-          {/* No sidebar + no assignments */}
-          {!hasSidebar && !selected && (
-            <div className="flex flex-col items-center justify-center h-full min-h-48 text-center border-2 border-dashed border-zinc-200 rounded-2xl bg-white">
-              <p className="text-sm text-zinc-400">No assignments assigned to you.</p>
+              {loading ? (
+                <p className="text-sm text-zinc-400">Loading…</p>
+              ) : assignments.length === 0 ? (
+                <p className="text-sm text-zinc-400">No assignments assigned to you.</p>
+              ) : (
+                <>
+                  <p className="text-sm text-zinc-400 mb-1">Select an assignment to enter marks</p>
+                  <p className="text-xs text-zinc-300">Use the sidebar on the left</p>
+                </>
+              )}
             </div>
           )}
 
@@ -280,17 +309,15 @@ export default function FacultyPage() {
           ) : marksData ? (
             <>
               {/* Back button on mobile */}
-              {hasSidebar && (
-                <button
-                  className="lg:hidden flex items-center gap-1.5 text-xs font-mono text-zinc-500 hover:text-zinc-800 mb-4 transition"
-                  onClick={goBack}
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-                  </svg>
-                  Back to subjects
-                </button>
-              )}
+              <button
+                className="lg:hidden flex items-center gap-1.5 text-xs font-mono text-zinc-500 hover:text-zinc-800 mb-4 transition"
+                onClick={goBack}
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                </svg>
+                Back to subjects
+              </button>
 
               {/* Section header */}
               <div className="flex items-start justify-between gap-4 mb-5 flex-wrap">
@@ -300,30 +327,22 @@ export default function FacultyPage() {
                     <StatusPill status={marksData.assignment.status} />
                   </div>
                   <p className="text-sm text-zinc-400 capitalize">
-                    {marksData.assignment.mark_type} marks · {marksData.assignment.class_name}
+                    {marksData.assignment.mark_type} marks · {marksData.assignment.class_name}{marksData.assignment.semester ? ` · Sem ${marksData.assignment.semester}` : ""}
                   </p>
                 </div>
 
-                {!isLocked && (
-                  <div className="flex gap-2 flex-wrap">
-                    <button
-                      className="font-mono text-xs border border-zinc-200 text-zinc-600 hover:bg-zinc-50 hover:border-zinc-300 px-3 py-2 rounded-lg transition disabled:opacity-40"
-                      onClick={handleSave}
-                      disabled={saving}
-                      data-testid="save-marks-btn"
-                    >
-                      {saving ? "Saving…" : "Save Draft"}
-                    </button>
-                    {isSubmitted ? (
+                <div className="flex gap-2 flex-wrap">
+                  {/* Save draft + Submit — only when open */}
+                  {!isLocked && !isSubmitted && (
+                    <>
                       <button
-                        className="font-mono text-xs border border-zinc-200 text-zinc-600 hover:bg-zinc-50 px-3 py-2 rounded-lg transition disabled:opacity-40"
-                        onClick={handleReopen}
-                        disabled={reopening}
-                        data-testid="reopen-btn"
+                        className="font-mono text-xs border border-zinc-200 text-zinc-600 hover:bg-zinc-50 hover:border-zinc-300 px-3 py-2 rounded-lg transition disabled:opacity-40"
+                        onClick={handleSave}
+                        disabled={saving}
+                        data-testid="save-marks-btn"
                       >
-                        {reopening ? "…" : "Reopen"}
+                        {saving ? "Saving…" : "Save Draft"}
                       </button>
-                    ) : (
                       <button
                         className="font-mono text-xs bg-zinc-900 hover:bg-zinc-700 text-white px-4 py-2 rounded-lg transition disabled:opacity-40"
                         onClick={handleSubmit}
@@ -332,9 +351,20 @@ export default function FacultyPage() {
                       >
                         {submitting ? "Submitting…" : "Submit →"}
                       </button>
-                    )}
-                  </div>
-                )}
+                    </>
+                  )}
+                  {/* Reopen — only when submitted (not locked) */}
+                  {isSubmitted && marksData.assignment.status === "submitted" && (
+                    <button
+                      className="font-mono text-xs border border-zinc-200 text-zinc-600 hover:bg-zinc-50 px-3 py-2 rounded-lg transition disabled:opacity-40"
+                      onClick={handleReopen}
+                      disabled={reopening}
+                      data-testid="reopen-btn"
+                    >
+                      {reopening ? "…" : "Reopen"}
+                    </button>
+                  )}
+                </div>
               </div>
 
               {saveMsg && (
@@ -345,7 +375,9 @@ export default function FacultyPage() {
 
               {isLocked && (
                 <div className="bg-zinc-50 border border-zinc-200 rounded-xl text-zinc-500 text-sm px-4 py-3 mb-5" data-testid="locked-banner">
-                  This sheet has been locked by the clerk — view only.
+                  {marksData.assignment.status === "submitted"
+                    ? "Marks submitted — reopen to make changes."
+                    : "This sheet has been locked by the clerk — view only."}
                 </div>
               )}
 

@@ -248,10 +248,10 @@ async function getSubjectByCode(college_id, subject_code) {
 
 async function getSubjectsByClass(college_id, class_id) {
   const result = await query(
-    `SELECT subject_id, name, subject_code, internal_max, external_max
+    `SELECT subject_id, name, subject_code, semester, internal_max, external_max
      FROM subjects
      WHERE college_id = @college_id AND class_id = @class_id
-     ORDER BY name`,
+     ORDER BY semester, name`,
     {
       college_id: { type: sql.Int, value: college_id },
       class_id: { type: sql.Int, value: class_id },
@@ -260,16 +260,32 @@ async function getSubjectsByClass(college_id, class_id) {
   return result.recordset;
 }
 
-async function createSubject(college_id, class_id, name, subject_code, internal_max, external_max) {
+async function getSubjectsByClassAndSemester(college_id, class_id, semester) {
   const result = await query(
-    `INSERT INTO subjects (college_id, class_id, name, subject_code, internal_max, external_max)
+    `SELECT subject_id, name, subject_code, semester, internal_max, external_max
+     FROM subjects
+     WHERE college_id = @college_id AND class_id = @class_id AND semester = @semester
+     ORDER BY name`,
+    {
+      college_id: { type: sql.Int, value: college_id },
+      class_id: { type: sql.Int, value: class_id },
+      semester: { type: sql.Int, value: semester },
+    }
+  );
+  return result.recordset;
+}
+
+async function createSubject(college_id, class_id, name, subject_code, semester, internal_max, external_max) {
+  const result = await query(
+    `INSERT INTO subjects (college_id, class_id, name, subject_code, semester, internal_max, external_max)
      OUTPUT INSERTED.subject_id
-     VALUES (@college_id, @class_id, @name, @subject_code, @internal_max, @external_max)`,
+     VALUES (@college_id, @class_id, @name, @subject_code, @semester, @internal_max, @external_max)`,
     {
       college_id: { type: sql.Int, value: college_id },
       class_id: { type: sql.Int, value: class_id },
       name: { type: sql.NVarChar(255), value: name },
       subject_code: { type: sql.NVarChar(20), value: subject_code },
+      semester: { type: sql.Int, value: semester || null },
       internal_max: { type: sql.Int, value: internal_max || null },
       external_max: { type: sql.Int, value: external_max || null },
     }
@@ -277,14 +293,15 @@ async function createSubject(college_id, class_id, name, subject_code, internal_
   return result.recordset[0].subject_id;
 }
 
-async function updateSubject(college_id, subject_id, name, subject_code, internal_max, external_max) {
+async function updateSubject(college_id, subject_id, name, subject_code, semester, internal_max, external_max) {
   await query(
     `UPDATE subjects SET name = @name, subject_code = @subject_code,
-       internal_max = @internal_max, external_max = @external_max
+       semester = @semester, internal_max = @internal_max, external_max = @external_max
      WHERE subject_id = @subject_id AND college_id = @college_id`,
     {
       name: { type: sql.NVarChar(255), value: name },
       subject_code: { type: sql.NVarChar(20), value: subject_code },
+      semester: { type: sql.Int, value: semester || null },
       internal_max: { type: sql.Int, value: internal_max || null },
       external_max: { type: sql.Int, value: external_max || null },
       subject_id: { type: sql.Int, value: subject_id },
@@ -340,7 +357,7 @@ async function createStudent(college_id, class_id, seat_no, registration_no, nam
 async function getAssignmentsByFaculty(college_id, faculty_id) {
   const result = await query(
     `SELECT a.assignment_id, a.status, a.mark_type,
-            s.name AS subject_name, s.subject_code, s.subject_id,
+            s.name AS subject_name, s.subject_code, s.subject_id, s.semester,
             c.name AS class_name, c.class_id
      FROM assignments a
      JOIN subjects s ON a.subject_id = s.subject_id
@@ -375,9 +392,11 @@ async function getAssignmentsByCollege(college_id) {
 async function getAssignmentById(college_id, assignment_id) {
   const result = await query(
     `SELECT a.assignment_id, a.status, a.mark_type, a.faculty_id, a.subject_id,
-            s.class_id, s.name AS subject_name
+            s.class_id, s.name AS subject_name, s.semester,
+            c.name AS class_name
      FROM assignments a
      JOIN subjects s ON a.subject_id = s.subject_id
+     JOIN classes c ON s.class_id = c.class_id
      WHERE a.college_id = @college_id AND a.assignment_id = @assignment_id`,
     {
       college_id: { type: sql.Int, value: college_id },
@@ -516,6 +535,7 @@ module.exports = {
   updateClass,
   deleteClass,
   getSubjectsByClass,
+  getSubjectsByClassAndSemester,
   createSubject,
   updateSubject,
   deleteSubject,

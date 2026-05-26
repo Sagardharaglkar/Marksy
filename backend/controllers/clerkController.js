@@ -47,10 +47,22 @@ async function listSubjects(req, res) {
   return res.json(subjects);
 }
 
+async function listSubjectsBySemester(req, res) {
+  const { college_id } = req.user;
+  const { class_id } = req.params;
+  const { semester } = req.query;
+  if (!semester) {
+    const subjects = await db.getSubjectsByClass(college_id, Number(class_id));
+    return res.json(subjects);
+  }
+  const subjects = await db.getSubjectsByClassAndSemester(college_id, Number(class_id), Number(semester));
+  return res.json(subjects);
+}
+
 async function createSubject(req, res) {
   const { college_id } = req.user;
   const { class_id } = req.params;
-  const { name, subject_code, internal_max, external_max } = req.body;
+  const { name, subject_code, semester, internal_max, external_max } = req.body;
   if (!name || !subject_code) {
     return res.status(400).json({ error: "name and subject_code required" });
   }
@@ -63,21 +75,21 @@ async function createSubject(req, res) {
     return res.status(409).json({ error: `Subject code "${code}" is already used` });
   }
   const subject_id = await db.createSubject(
-    college_id, Number(class_id), name.trim(), code, internal_max, external_max
+    college_id, Number(class_id), name.trim(), code, semester ? Number(semester) : null, internal_max, external_max
   );
-  return res.status(201).json({ subject_id, name: name.trim(), subject_code: code });
+  return res.status(201).json({ subject_id, name: name.trim(), subject_code: code, semester: semester ? Number(semester) : null });
 }
 
 async function updateSubject(req, res) {
   const { college_id } = req.user;
   const { subject_id } = req.params;
-  const { name, subject_code, internal_max, external_max } = req.body;
+  const { name, subject_code, semester, internal_max, external_max } = req.body;
   if (!name || !subject_code) {
     return res.status(400).json({ error: "name and subject_code required" });
   }
   await db.updateSubject(
     college_id, Number(subject_id), name.trim(), subject_code.trim().toUpperCase(),
-    internal_max, external_max
+    semester ? Number(semester) : null, internal_max, external_max
   );
   return res.json({ message: "Updated" });
 }
@@ -249,7 +261,7 @@ async function downloadMarks(req, res) {
 
 module.exports = {
   listClasses, createClass, updateClass, deleteClass,
-  listSubjects, createSubject, updateSubject, deleteSubject,
+  listSubjects, listSubjectsBySemester, createSubject, updateSubject, deleteSubject,
   listFaculty, createFaculty, updateFaculty, deleteFaculty,
   listAssignments, createAssignment, updateAssignment, deleteAssignment, lockAssignment,
   viewMarks, downloadMarks,
