@@ -56,6 +56,9 @@ app.use("/api/clerk",       require("./routes/clerk"));
 app.use("/api/faculty",     require("./routes/faculty"));
 app.use("/api/profile",     require("./routes/profile"));
 
+// Health check
+app.get("/health", (req, res) => res.json({ status: "ok" }));
+
 // Serve React build
 const publicDir = path.join(__dirname, "public");
 app.use(express.static(publicDir));

@@ -96,7 +96,7 @@ async function importStudents(req, res) {
     try {
       const student_id = await db.createStudent(
         college_id, Number(class_id),
-        row.seat_no, row.registration_no, toTitleCase(row.name), row.semester ?? null
+        row.seat_no, row.registration_no.toUpperCase(), toTitleCase(row.name), row.semester ?? null
       );
       created.push(student_id);
     } catch (err) {
@@ -123,9 +123,9 @@ async function addStudent(req, res) {
     const n = toTitleCase(name);
     const student_id = await db.createStudent(
       college_id, Number(class_id),
-      seat_no.trim(), registration_no.trim(), n, sem
+      seat_no.trim(), registration_no.trim().toUpperCase(), n, sem
     );
-    return res.status(201).json({ student_id, seat_no: seat_no.trim(), registration_no: registration_no.trim(), name: n, semester: sem });
+    return res.status(201).json({ student_id, seat_no: seat_no.trim(), registration_no: registration_no.trim().toUpperCase(), name: n, semester: sem });
   } catch (err) {
     if (err.message && err.message.includes("duplicate") || err.number === 2627 || err.number === 2601) {
       return res.status(409).json({ error: "Seat no or registration no already exists in this class" });

@@ -4,7 +4,7 @@ const asyncHandler = require("../middleware/asyncHandler");
 
 router.post("/resolve-code",             asyncHandler(resolveCollegeCode));
 router.post("/login",                    asyncHandler(login));
-router.post("/logout",                   logout);
+router.post("/logout",                   asyncHandler(logout));
 router.post("/forgot-password/send-otp", asyncHandler(forgotPasswordSendOtp));
 router.post("/forgot-password/reset",    asyncHandler(forgotPasswordReset));
 

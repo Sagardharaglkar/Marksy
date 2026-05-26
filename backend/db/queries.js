@@ -590,6 +590,9 @@ module.exports = {
   saveOtp,
   verifyAndConsumeOtp,
   deleteExpiredOtps,
+  blacklistToken,
+  isTokenBlacklisted,
+  deleteExpiredBlacklistEntries,
 };
 
 // ─── OTP store (DB-backed) ───────────────────────────────────────────────────
@@ -637,4 +640,28 @@ async function verifyAndConsumeOtp(user_id, purpose, code) {
 
 async function deleteExpiredOtps() {
   await query(`DELETE FROM otp_store WHERE expires_at < SYSUTCDATETIME() OR used = 1`);
+}
+
+// ─── Token blacklist ──────────────────────────────────────────────────────────
+
+async function blacklistToken(jti, expiresAt) {
+  await query(
+    `INSERT INTO token_blacklist (jti, expires_at) VALUES (@jti, @expires_at)`,
+    {
+      jti:        { type: sql.VarChar(36),   value: jti },
+      expires_at: { type: sql.DateTime2(),   value: expiresAt },
+    }
+  );
+}
+
+async function isTokenBlacklisted(jti) {
+  const result = await query(
+    `SELECT 1 AS found FROM token_blacklist WHERE jti = @jti AND expires_at > SYSUTCDATETIME()`,
+    { jti: { type: sql.VarChar(36), value: jti } }
+  );
+  return result.recordset.length > 0;
+}
+
+async function deleteExpiredBlacklistEntries() {
+  await query(`DELETE FROM token_blacklist WHERE expires_at < SYSUTCDATETIME()`);
 }

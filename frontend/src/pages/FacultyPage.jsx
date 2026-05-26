@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import api from "../api/client";
 import { useAuth } from "../context/AuthContext";
 import ProfileModal from "../components/ProfileModal";
+import { SkeletonCards } from "../components/Skeleton";
 
 function marksReducer(state, action) {
   switch (action.type) {
@@ -49,6 +50,7 @@ export default function FacultyPage() {
   const location = useLocation();
   const [assignments, setAssignments] = useState([]);
   const [loading, setLoading]         = useState(true);
+  const [loadError, setLoadError]     = useState("");
   const [selected, setSelected]       = useState(null);
   const [marksData, setMarksData]     = useState(null);
   const [marksLoading, setMarksLoading] = useState(false);
@@ -62,10 +64,12 @@ export default function FacultyPage() {
   const autoSaveTimer = useRef(null);
 
   useEffect(() => {
-    api.get("/faculty/assignments").then(res => {
-      setAssignments(res.data);
-      setLoading(false);
-    });
+    api.get("/faculty/assignments")
+      .then(res => { setAssignments(res.data); setLoading(false); })
+      .catch(err => {
+        setLoadError(err.friendlyMessage || err.response?.data?.error || "Failed to load assignments");
+        setLoading(false);
+      });
   }, []);
 
   // Auto-save marks 1.5s after the faculty stops typing
@@ -229,7 +233,12 @@ export default function FacultyPage() {
             </div>
             <div className="flex-1 overflow-y-auto p-3">
               {loading ? (
-                <p className="text-sm text-zinc-400 px-2 py-4">Loading…</p>
+                <div className="flex flex-col gap-2 p-1"><SkeletonCards count={3} /></div>
+              ) : loadError ? (
+                <div className="bg-red-50 border border-red-200 rounded-xl py-6 text-center px-3 mx-2">
+                  <p className="text-xs text-red-500 font-mono mb-2">{loadError}</p>
+                  <button onClick={() => window.location.reload()} className="text-xs font-mono text-red-600 underline">Retry</button>
+                </div>
               ) : assignments.length === 0 ? (
                 <p className="text-sm text-zinc-400 border-2 border-dashed border-zinc-200 rounded-xl py-8 text-center mx-2">No assignments.</p>
               ) : (
@@ -269,7 +278,12 @@ export default function FacultyPage() {
             <div className="lg:hidden">
               <h2 className="font-head text-lg font-bold text-zinc-900 mb-4">Your Assignments</h2>
               {loading ? (
-                <p className="text-sm text-zinc-400 py-8">Loading…</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3"><SkeletonCards count={4} /></div>
+              ) : loadError ? (
+                <div className="bg-red-50 border border-red-200 rounded-2xl py-8 text-center">
+                  <p className="text-sm text-red-500 font-mono mb-3">{loadError}</p>
+                  <button onClick={() => window.location.reload()} className="text-xs font-mono text-red-600 underline">Retry</button>
+                </div>
               ) : assignments.length === 0 ? (
                 <p className="text-sm text-zinc-400 border-2 border-dashed border-zinc-200 rounded-2xl py-10 text-center">No assignments assigned to you.</p>
               ) : (
@@ -299,7 +313,12 @@ export default function FacultyPage() {
           {!selected && (
             <div className="hidden lg:flex flex-col items-center justify-center h-full min-h-48 text-center border-2 border-dashed border-zinc-200 rounded-2xl bg-white">
               {loading ? (
-                <p className="text-sm text-zinc-400">Loading…</p>
+                <div className="flex flex-col gap-2 w-48"><SkeletonCards count={2} /></div>
+              ) : loadError ? (
+                <div>
+                  <p className="text-sm text-red-500 font-mono mb-2">{loadError}</p>
+                  <button onClick={() => window.location.reload()} className="text-xs font-mono text-red-600 underline">Retry</button>
+                </div>
               ) : assignments.length === 0 ? (
                 <p className="text-sm text-zinc-400">No assignments assigned to you.</p>
               ) : (
@@ -313,7 +332,7 @@ export default function FacultyPage() {
 
           {selected && (
             marksLoading ? (
-            <p className="text-sm text-zinc-400 py-8">Loading marks…</p>
+            <div className="flex flex-col gap-3 max-w-2xl mx-auto pt-4"><SkeletonCards count={6} /></div>
           ) : marksData ? (
             <>
               {/* Back button on mobile */}

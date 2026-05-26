@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import api from "../api/client";
 import { useAuth } from "../context/AuthContext";
 import ProfileModal from "../components/ProfileModal";
+import { SkeletonTableRows, SkeletonCards } from "../components/Skeleton";
 
 const TABS = ["Classes", "Faculty", "Assignments", "Marks"];
 
@@ -244,6 +245,7 @@ export default function ClerkPage() {
 function ClassesTab() {
   const [classes, setClasses]       = useState([]);
   const [loading, setLoading]       = useState(true);
+  const [loadError, setLoadError]   = useState("");
   const [modal, setModal]           = useState(null);
   const [editing, setEditing]       = useState(null);
   const [selectedClass, setSelectedClass] = useState(null);
@@ -270,7 +272,9 @@ function ClassesTab() {
   const [classSearch, setClassSearch] = useState("");
 
   async function fetchClasses() {
+    setLoadError("");
     try { const res = await api.get("/clerk/classes"); setClasses(res.data); }
+    catch (err) { setLoadError(err.friendlyMessage || err.response?.data?.error || "Failed to load classes"); }
     finally { setLoading(false); }
   }
   useEffect(() => { fetchClasses(); }, []);
@@ -401,7 +405,16 @@ function ClassesTab() {
       />
 
       {loading ? (
-        <p className="text-sm text-zinc-400 py-8">Loading…</p>
+        <div className="bg-white border border-zinc-200 rounded-2xl overflow-hidden shadow-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm"><THead cols={["Class", "Actions"]} /><tbody className="divide-y divide-zinc-50"><SkeletonTableRows rows={4} cols={2} /></tbody></table>
+          </div>
+        </div>
+      ) : loadError ? (
+        <div className="bg-red-50 border border-red-200 rounded-2xl py-8 text-center">
+          <p className="text-sm text-red-500 font-mono mb-3">{loadError}</p>
+          <button onClick={fetchClasses} className="text-xs font-mono text-red-600 underline">Retry</button>
+        </div>
       ) : classes.length === 0 ? (
         <div className="bg-white border-2 border-dashed border-zinc-200 rounded-2xl py-16 text-center">
           <p className="text-sm text-zinc-400">No classes yet. Create one to get started.</p>
@@ -598,6 +611,7 @@ function ClassesTab() {
 function FacultyTab() {
   const [faculty, setFaculty]       = useState([]);
   const [loading, setLoading]       = useState(true);
+  const [loadError, setLoadError]   = useState("");
   const [modal, setModal]           = useState(null);
   const [editing, setEditing]       = useState(null);
   const [deleting, setDeleting]     = useState(null);
@@ -609,7 +623,9 @@ function FacultyTab() {
   const [search, setSearch]         = useState("");
 
   async function fetchFaculty() {
+    setLoadError("");
     try { const res = await api.get("/clerk/faculty"); setFaculty(res.data); }
+    catch (err) { setLoadError(err.friendlyMessage || err.response?.data?.error || "Failed to load faculty"); }
     finally { setLoading(false); }
   }
   useEffect(() => { fetchFaculty(); }, []);
@@ -661,7 +677,16 @@ function FacultyTab() {
       <SearchBar value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by name or phone…" className="mb-4 max-w-xs" />
 
       {loading ? (
-        <p className="text-sm text-zinc-400 py-8">Loading…</p>
+        <div className="bg-white border border-zinc-200 rounded-2xl overflow-hidden shadow-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm"><THead cols={["Name", "Phone", ""]} /><tbody className="divide-y divide-zinc-50"><SkeletonTableRows rows={4} cols={3} /></tbody></table>
+          </div>
+        </div>
+      ) : loadError ? (
+        <div className="bg-red-50 border border-red-200 rounded-2xl py-8 text-center">
+          <p className="text-sm text-red-500 font-mono mb-3">{loadError}</p>
+          <button onClick={fetchFaculty} className="text-xs font-mono text-red-600 underline">Retry</button>
+        </div>
       ) : faculty.length === 0 ? (
         <div className="bg-white border-2 border-dashed border-zinc-200 rounded-2xl py-16 text-center">
           <p className="text-sm text-zinc-400">No faculty yet.</p>
@@ -746,6 +771,7 @@ function AssignmentsTab() {
   const [classes, setClasses]                 = useState([]);
   const [faculty, setFaculty]                 = useState([]);
   const [loading, setLoading]                 = useState(true);
+  const [loadError, setLoadError]             = useState("");
   const [modal, setModal]                     = useState(null);
   const [editing, setEditing]                 = useState(null);
   const [deleting, setDeleting]               = useState(null);
@@ -762,13 +788,19 @@ function AssignmentsTab() {
   const [filterType, setFilterType]           = useState("");
 
   async function fetchAll() {
-    const [aRes, cRes, fRes] = await Promise.all([
-      api.get("/clerk/assignments"),
-      api.get("/clerk/classes"),
-      api.get("/clerk/faculty"),
-    ]);
-    setAssignments(aRes.data); setClasses(cRes.data); setFaculty(fRes.data);
-    setLoading(false);
+    setLoadError("");
+    try {
+      const [aRes, cRes, fRes] = await Promise.all([
+        api.get("/clerk/assignments"),
+        api.get("/clerk/classes"),
+        api.get("/clerk/faculty"),
+      ]);
+      setAssignments(aRes.data); setClasses(cRes.data); setFaculty(fRes.data);
+    } catch (err) {
+      setLoadError(err.friendlyMessage || err.response?.data?.error || "Failed to load assignments");
+    } finally {
+      setLoading(false);
+    }
   }
   useEffect(() => { fetchAll(); }, []);
 
@@ -865,7 +897,16 @@ function AssignmentsTab() {
       </div>
 
       {loading ? (
-        <p className="text-sm text-zinc-400 py-8">Loading…</p>
+        <div className="bg-white border border-zinc-200 rounded-2xl overflow-hidden shadow-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm"><THead cols={["Class", "Subject", "Type", "Faculty", "Status", ""]} /><tbody className="divide-y divide-zinc-50"><SkeletonTableRows rows={5} cols={6} /></tbody></table>
+          </div>
+        </div>
+      ) : loadError ? (
+        <div className="bg-red-50 border border-red-200 rounded-2xl py-8 text-center">
+          <p className="text-sm text-red-500 font-mono mb-3">{loadError}</p>
+          <button onClick={fetchAll} className="text-xs font-mono text-red-600 underline">Retry</button>
+        </div>
       ) : assignments.length === 0 ? (
         <div className="bg-white border-2 border-dashed border-zinc-200 rounded-2xl py-16 text-center">
           <p className="text-sm text-zinc-400">No assignments yet.</p>
@@ -1040,6 +1081,7 @@ function MarksTab() {
   const [markSearch, setMarkSearch]     = useState("");
   const [panelOpen, setPanelOpen]       = useState(false);
 
+  const [loadError, setLoadError] = useState("");
   useEffect(() => {
     Promise.all([
       api.get("/clerk/assignments"),
@@ -1047,6 +1089,9 @@ function MarksTab() {
     ]).then(([aRes, cRes]) => {
       setAssignments(aRes.data);
       setClasses(cRes.data);
+      setLoading(false);
+    }).catch(err => {
+      setLoadError(err.friendlyMessage || err.response?.data?.error || "Failed to load");
       setLoading(false);
     });
   }, []);
@@ -1117,7 +1162,12 @@ function MarksTab() {
           </div>
 
           {loading ? (
-            <p className="text-sm text-zinc-400">Loading…</p>
+            <div className="flex flex-col gap-1.5"><SkeletonCards count={4} /></div>
+          ) : loadError ? (
+            <div className="bg-red-50 border border-red-200 rounded-xl py-6 text-center px-3">
+              <p className="text-xs text-red-500 font-mono mb-2">{loadError}</p>
+              <button onClick={() => window.location.reload()} className="text-xs font-mono text-red-600 underline">Retry</button>
+            </div>
           ) : (
             <div className="flex flex-col gap-1.5 lg:max-h-[calc(100vh-280px)] lg:overflow-y-auto pr-0.5">
               {filteredAssignments.length === 0 ? (
@@ -1155,7 +1205,7 @@ function MarksTab() {
             <p className="text-sm text-zinc-400">Select an assignment to view marks</p>
           </div>
         ) : marksLoading ? (
-          <p className="text-sm text-zinc-400 py-8">Loading marks…</p>
+          <div className="flex flex-col gap-3"><SkeletonCards count={5} /></div>
         ) : marksData ? (
           <>
             <div className="flex items-start justify-between gap-4 mb-4 flex-wrap">

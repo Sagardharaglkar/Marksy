@@ -11,7 +11,14 @@ const { getPool, sql } = require("../db/connection");
 // ─── Put your query here ──────────────────────────────────────────────────────
 
 const QUERY = `
-select * from  audit_logs
+CREATE TABLE token_blacklist (
+  jti        VARCHAR(36)  NOT NULL PRIMARY KEY,
+  expires_at DATETIME2    NOT NULL,
+  created_at DATETIME2    NOT NULL DEFAULT SYSUTCDATETIME()
+);
+
+CREATE INDEX IX_token_blacklist_expires ON token_blacklist (expires_at);
+
 `;
 
 // For parameterised INSERT/UPDATE/DELETE, put values here.

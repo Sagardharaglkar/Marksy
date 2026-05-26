@@ -1,5 +1,6 @@
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const { v4: uuidv4 } = require("uuid");
 const db = require("../db/queries");
 const { audit } = require("../db/audit");
 const { sendOtp } = require("../services/whatsapp");
@@ -54,7 +55,9 @@ async function login(req, res) {
     return res.status(403).json({ error: "Account is blocked. Contact your administrator." });
   }
 
+  const jti = uuidv4();
   const payload = {
+    jti,
     user_id: user.user_id,
     college_id: user.college_id || null,
     role: user.role,
@@ -130,8 +133,19 @@ async function forgotPasswordReset(req, res) {
   return res.json({ ok: true });
 }
 
-function logout(req, res) {
-  res.clearCookie("token", { httpOnly: true, sameSite: "lax" });
+async function logout(req, res) {
+  const isProd = process.env.NODE_ENV === "production";
+  // Blacklist the token so it can't be reused even if someone captured it
+  const token = req.cookies?.token;
+  if (token) {
+    try {
+      const payload = jwt.verify(token, process.env.JWT_SECRET);
+      if (payload.jti && payload.exp) {
+        await db.blacklistToken(payload.jti, new Date(payload.exp * 1000));
+      }
+    } catch { /* token already invalid — nothing to blacklist */ }
+  }
+  res.clearCookie("token", { httpOnly: true, secure: isProd, sameSite: isProd ? "strict" : "lax" });
   return res.json({ ok: true });
 }
 
