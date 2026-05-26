@@ -14,7 +14,7 @@ app.use(helmet());
 // CORS — only allow configured origins
 const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(",").map(o => o.trim())
-  : ["http://localhost:5173", "http://localhost:5000"];
+  : ["https://marksy.vengurlatech.com", "http://localhost:5173", "http://localhost:5000"];
 
 app.use(cors({
   origin: (origin, cb) => {
