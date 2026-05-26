@@ -2,6 +2,7 @@ const bcrypt = require("bcryptjs");
 const ExcelJS = require("exceljs");
 const db = require("../db/queries");
 const { audit } = require("../db/audit");
+const { validatePassword, validatePhone } = require("../utils/validate");
 
 const toTitleCase = s => s.trim().replace(/\w\S*/g, w => w.charAt(0).toUpperCase() + w.slice(1));
 
@@ -128,6 +129,10 @@ async function createFaculty(req, res) {
   if (!name || !phone || !password) {
     return res.status(400).json({ error: "name, phone, password required" });
   }
+  const phoneErr = validatePhone(phone);
+  if (phoneErr) return res.status(400).json({ error: phoneErr });
+  const pwdErr = validatePassword(password);
+  if (pwdErr) return res.status(400).json({ error: pwdErr });
   const existing = await db.getUserByPhone(college_id, phone);
   if (existing) {
     return res.status(409).json({ error: "Phone already registered in this college" });
@@ -146,6 +151,8 @@ async function updateFaculty(req, res) {
   if (!name || !phone) {
     return res.status(400).json({ error: "name and phone required" });
   }
+  const phoneErr = validatePhone(phone);
+  if (phoneErr) return res.status(400).json({ error: phoneErr });
   const existing = await db.getUserByPhone(college_id, phone.trim());
   if (existing && existing.user_id !== Number(user_id)) {
     return res.status(409).json({ error: "Phone already in use by another user" });

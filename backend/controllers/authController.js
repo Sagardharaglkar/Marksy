@@ -3,23 +3,11 @@ const jwt = require("jsonwebtoken");
 const db = require("../db/queries");
 const { audit } = require("../db/audit");
 const { sendOtp } = require("../services/whatsapp");
+const { validatePassword } = require("../utils/validate");
 
-// In-memory OTP store for forgot-password (keyed by user_id)
-const forgotOtpStore = new Map();
 const OTP_TTL = 10 * 60 * 1000;
 
 function genOtp() { return String(Math.floor(100000 + Math.random() * 900000)); }
-function storeForgotOtp(user_id, code) {
-  forgotOtpStore.set(user_id, { code, expires: Date.now() + OTP_TTL });
-}
-function verifyForgotOtp(user_id, code) {
-  const entry = forgotOtpStore.get(user_id);
-  if (!entry) return false;
-  if (Date.now() > entry.expires) { forgotOtpStore.delete(user_id); return false; }
-  const valid = entry.code === String(code);
-  if (valid) forgotOtpStore.delete(user_id);
-  return valid;
-}
 
 async function resolveCollegeCode(req, res) {
   const { college_code } = req.body;
@@ -79,7 +67,15 @@ async function login(req, res) {
   req.user = { user_id: user.user_id, name: user.name, role: user.role, college_id: user.college_id || null };
   audit(req, "USER_LOGIN", { type: "user", id: user.user_id, name: user.name });
 
-  return res.json({ token, user: { user_id: user.user_id, name: user.name, role: user.role } });
+  const isProd = process.env.NODE_ENV === "production";
+  res.cookie("token", token, {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: isProd ? "strict" : "lax",
+    maxAge: 8 * 60 * 60 * 1000, // 8 hours in ms
+  });
+
+  return res.json({ user: { user_id: user.user_id, name: user.name, role: user.role } });
 }
 
 // POST /api/auth/forgot-password/send-otp
@@ -95,12 +91,11 @@ async function forgotPasswordSendOtp(req, res) {
   if (!user) return res.status(404).json({ error: "No account found with this phone number" });
 
   const otp = genOtp();
-  storeForgotOtp(user.user_id, otp);
+  await db.saveOtp(user.user_id, "forgot", otp, OTP_TTL);
 
   try {
     await sendOtp(user.phone, otp);
   } catch (err) {
-    forgotOtpStore.delete(user.user_id);
     return res.status(502).json({ error: err.message || "Failed to send OTP" });
   }
 
@@ -114,9 +109,8 @@ async function forgotPasswordReset(req, res) {
   if (!phone || !otp || !new_password) {
     return res.status(400).json({ error: "phone, otp and new_password required" });
   }
-  if (new_password.length < 6) {
-    return res.status(400).json({ error: "New password must be at least 6 characters" });
-  }
+  const pwdErr = validatePassword(new_password);
+  if (pwdErr) return res.status(400).json({ error: pwdErr });
 
   const user = college_id
     ? await db.getUserByPhone(Number(college_id), phone)
@@ -124,9 +118,8 @@ async function forgotPasswordReset(req, res) {
 
   if (!user) return res.status(401).json({ error: "Invalid OTP" });
 
-  if (!verifyForgotOtp(user.user_id, otp)) {
-    return res.status(401).json({ error: "Invalid or expired OTP" });
-  }
+  const valid = await db.verifyAndConsumeOtp(user.user_id, "forgot", otp);
+  if (!valid) return res.status(401).json({ error: "Invalid or expired OTP" });
 
   const password_hash = await bcrypt.hash(new_password, 10);
   await db.updateUserPassword(user.user_id, user.college_id ?? null, password_hash);
@@ -137,4 +130,9 @@ async function forgotPasswordReset(req, res) {
   return res.json({ ok: true });
 }
 
-module.exports = { resolveCollegeCode, login, forgotPasswordSendOtp, forgotPasswordReset };
+function logout(req, res) {
+  res.clearCookie("token", { httpOnly: true, sameSite: "lax" });
+  return res.json({ ok: true });
+}
+
+module.exports = { resolveCollegeCode, login, logout, forgotPasswordSendOtp, forgotPasswordReset };

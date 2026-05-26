@@ -18,14 +18,12 @@ export function AuthProvider({ children }) {
 
   const timerRef = useRef(null);
 
-  function storeSession(token, userData) {
-    localStorage.setItem("token", token);
+  function storeSession(userData) {
     localStorage.setItem("user", JSON.stringify(userData));
     setUser(userData);
   }
 
   function clearSession() {
-    localStorage.removeItem("token");
     localStorage.removeItem("user");
     localStorage.removeItem("session_expires");
     setUser(null);
@@ -81,12 +79,13 @@ export function AuthProvider({ children }) {
   async function login(college_id, phone, password, college_name) {
     const res = await api.post("/auth/login", { college_id, phone, password });
     const userData = college_name ? { ...res.data.user, college_name } : res.data.user;
-    storeSession(res.data.token, userData);
+    storeSession(userData);
     resetIdleTimer(res.data.user.role);
     return userData;
   }
 
-  function logout() {
+  async function logout() {
+    try { await api.post("/auth/logout"); } catch { /* ignore */ }
     clearSession();
   }
 

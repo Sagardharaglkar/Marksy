@@ -587,4 +587,54 @@ module.exports = {
   upsertMark,
   seedMarksForAssignment,
   updateUserPassword,
+  saveOtp,
+  verifyAndConsumeOtp,
+  deleteExpiredOtps,
 };
+
+// ─── OTP store (DB-backed) ───────────────────────────────────────────────────
+
+async function saveOtp(user_id, purpose, code, ttlMs) {
+  // Invalidate any existing unused OTP for this user+purpose
+  await query(
+    `UPDATE otp_store SET used = 1 WHERE user_id = @user_id AND purpose = @purpose AND used = 0`,
+    {
+      user_id: { type: sql.Int,         value: user_id },
+      purpose: { type: sql.VarChar(20), value: purpose },
+    }
+  );
+  const expires_at = new Date(Date.now() + ttlMs);
+  await query(
+    `INSERT INTO otp_store (user_id, purpose, code, expires_at) VALUES (@user_id, @purpose, @code, @expires_at)`,
+    {
+      user_id:    { type: sql.Int,          value: user_id },
+      purpose:    { type: sql.VarChar(20),  value: purpose },
+      code:       { type: sql.VarChar(6),   value: code },
+      expires_at: { type: sql.DateTime2(),  value: expires_at },
+    }
+  );
+}
+
+async function verifyAndConsumeOtp(user_id, purpose, code) {
+  const result = await query(
+    `SELECT id FROM otp_store
+     WHERE user_id = @user_id AND purpose = @purpose AND code = @code
+       AND used = 0 AND expires_at > SYSUTCDATETIME()`,
+    {
+      user_id: { type: sql.Int,        value: user_id },
+      purpose: { type: sql.VarChar(20), value: purpose },
+      code:    { type: sql.VarChar(6),  value: code },
+    }
+  );
+  const row = result.recordset[0];
+  if (!row) return false;
+  await query(
+    `UPDATE otp_store SET used = 1 WHERE id = @id`,
+    { id: { type: sql.Int, value: row.id } }
+  );
+  return true;
+}
+
+async function deleteExpiredOtps() {
+  await query(`DELETE FROM otp_store WHERE expires_at < SYSUTCDATETIME() OR used = 1`);
+}

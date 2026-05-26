@@ -1,10 +1,7 @@
 const jwt = require("jsonwebtoken");
 
 function authenticate(req, res, next) {
-  const header = req.headers.authorization;
-  // Allow token via query param for file downloads (e.g. ?token=...)
-  const token = (header && header.startsWith("Bearer ") ? header.slice(7) : null)
-    || req.query.token;
+  const token = req.cookies?.token;
   if (!token) {
     return res.status(401).json({ error: "No token provided" });
   }

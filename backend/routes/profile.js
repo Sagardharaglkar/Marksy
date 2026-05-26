@@ -1,12 +1,12 @@
 const router = require("express").Router();
 const { authenticate, requireRole } = require("../middleware/auth");
+const asyncHandler = require("../middleware/asyncHandler");
 const { getProfile, requestOtp, changePassword } = require("../controllers/profileController");
 
-// Any authenticated non-super-admin user
 router.use(authenticate, requireRole("clerk", "faculty"));
 
-router.get("/",                 getProfile);
-router.post("/send-otp",        requestOtp);
-router.post("/change-password", changePassword);
+router.get("/",                 asyncHandler(getProfile));
+router.post("/send-otp",        asyncHandler(requestOtp));
+router.post("/change-password", asyncHandler(changePassword));
 
 module.exports = router;

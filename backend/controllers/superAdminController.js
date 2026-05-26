@@ -1,6 +1,7 @@
 const bcrypt = require("bcryptjs");
 const db = require("../db/queries");
 const { audit } = require("../db/audit");
+const { validatePassword, validatePhone } = require("../utils/validate");
 
 const toTitleCase = s => s.trim().replace(/\w\S*/g, w => w.charAt(0).toUpperCase() + w.slice(1));
 
@@ -10,8 +11,9 @@ async function editClerk(req, res) {
   if (!name || !phone) {
     return res.status(400).json({ error: "name and phone required" });
   }
+  const phoneErr = validatePhone(phone);
+  if (phoneErr) return res.status(400).json({ error: phoneErr });
 
-  // Check phone not taken by another user in same college
   const existing = await db.getUserByPhone(Number(college_id), phone.trim());
   if (existing && existing.user_id !== Number(user_id)) {
     return res.status(409).json({ error: "Phone already in use by another user" });
@@ -100,6 +102,10 @@ async function createFirstClerk(req, res) {
   if (!college_id || !name || !phone || !password) {
     return res.status(400).json({ error: "college_id, name, phone, password required" });
   }
+  const phoneErr = validatePhone(phone);
+  if (phoneErr) return res.status(400).json({ error: phoneErr });
+  const pwdErr = validatePassword(password);
+  if (pwdErr) return res.status(400).json({ error: pwdErr });
 
   const college = await db.getCollegeById(Number(college_id));
   if (!college) {

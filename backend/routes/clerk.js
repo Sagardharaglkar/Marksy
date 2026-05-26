@@ -1,6 +1,7 @@
 const router = require("express").Router();
 const multer = require("multer");
 const { authenticate, requireRole } = require("../middleware/auth");
+const asyncHandler = require("../middleware/asyncHandler");
 const c = require("../controllers/clerkController");
 const { importStudents, addStudent, listStudents } = require("../controllers/studentController");
 
@@ -9,37 +10,37 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 *
 router.use(authenticate, requireRole("clerk"));
 
 // classes
-router.get("/classes", c.listClasses);
-router.post("/classes", c.createClass);
-router.put("/classes/:class_id", c.updateClass);
-router.delete("/classes/:class_id", c.deleteClass);
+router.get("/classes",          asyncHandler(c.listClasses));
+router.post("/classes",         asyncHandler(c.createClass));
+router.put("/classes/:class_id",    asyncHandler(c.updateClass));
+router.delete("/classes/:class_id", asyncHandler(c.deleteClass));
 
-// subjects (nested under class) — supports ?semester=N query param for filtering
-router.get("/classes/:class_id/subjects", c.listSubjectsBySemester);
-router.post("/classes/:class_id/subjects", c.createSubject);
-router.put("/subjects/:subject_id", c.updateSubject);
-router.delete("/subjects/:subject_id", c.deleteSubject);
+// subjects
+router.get("/classes/:class_id/subjects",  asyncHandler(c.listSubjectsBySemester));
+router.post("/classes/:class_id/subjects", asyncHandler(c.createSubject));
+router.put("/subjects/:subject_id",        asyncHandler(c.updateSubject));
+router.delete("/subjects/:subject_id",     asyncHandler(c.deleteSubject));
 
 // students
-router.get("/classes/:class_id/students", listStudents);
-router.post("/classes/:class_id/students", addStudent);
-router.post("/classes/:class_id/students/import", upload.single("file"), importStudents);
+router.get("/classes/:class_id/students",                              asyncHandler(listStudents));
+router.post("/classes/:class_id/students",                             asyncHandler(addStudent));
+router.post("/classes/:class_id/students/import", upload.single("file"), asyncHandler(importStudents));
 
 // faculty
-router.get("/faculty", c.listFaculty);
-router.post("/faculty", c.createFaculty);
-router.put("/faculty/:user_id", c.updateFaculty);
-router.delete("/faculty/:user_id", c.deleteFaculty);
+router.get("/faculty",           asyncHandler(c.listFaculty));
+router.post("/faculty",          asyncHandler(c.createFaculty));
+router.put("/faculty/:user_id",  asyncHandler(c.updateFaculty));
+router.delete("/faculty/:user_id", asyncHandler(c.deleteFaculty));
 
 // assignments
-router.get("/assignments", c.listAssignments);
-router.post("/assignments", c.createAssignment);
-router.put("/assignments/:assignment_id", c.updateAssignment);
-router.delete("/assignments/:assignment_id", c.deleteAssignment);
-router.patch("/assignments/:assignment_id/lock", c.lockAssignment);
+router.get("/assignments",                       asyncHandler(c.listAssignments));
+router.post("/assignments",                      asyncHandler(c.createAssignment));
+router.put("/assignments/:assignment_id",        asyncHandler(c.updateAssignment));
+router.delete("/assignments/:assignment_id",     asyncHandler(c.deleteAssignment));
+router.patch("/assignments/:assignment_id/lock", asyncHandler(c.lockAssignment));
 
 // marks oversight
-router.get("/assignments/:assignment_id/marks", c.viewMarks);
-router.get("/assignments/:assignment_id/marks/download", c.downloadMarks);
+router.get("/assignments/:assignment_id/marks",          asyncHandler(c.viewMarks));
+router.get("/assignments/:assignment_id/marks/download", asyncHandler(c.downloadMarks));
 
 module.exports = router;

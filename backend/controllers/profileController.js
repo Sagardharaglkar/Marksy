@@ -2,29 +2,12 @@ const bcrypt  = require("bcryptjs");
 const db      = require("../db/queries");
 const { sendOtp } = require("../services/whatsapp");
 const { audit }   = require("../db/audit");
+const { validatePassword } = require("../utils/validate");
 
-// ─── In-memory OTP store ──────────────────────────────────────────────────────
-// { [user_id]: { code, expires } }
-// OTPs expire after 10 minutes. No DB table needed.
-
-const otpStore = new Map();
-const OTP_TTL  = 10 * 60 * 1000; // 10 minutes
+const OTP_TTL = 10 * 60 * 1000; // 10 minutes
 
 function generateOtp() {
-  return String(Math.floor(100000 + Math.random() * 900000)); // 6 digits
-}
-
-function storeOtp(user_id, code) {
-  otpStore.set(user_id, { code, expires: Date.now() + OTP_TTL });
-}
-
-function verifyOtp(user_id, code) {
-  const entry = otpStore.get(user_id);
-  if (!entry) return false;
-  if (Date.now() > entry.expires) { otpStore.delete(user_id); return false; }
-  const valid = entry.code === String(code);
-  if (valid) otpStore.delete(user_id); // single-use
-  return valid;
+  return String(Math.floor(100000 + Math.random() * 900000));
 }
 
 // ─── GET /api/profile ─────────────────────────────────────────────────────────
@@ -58,13 +41,11 @@ async function requestOtp(req, res) {
   if (!user) return res.status(404).json({ error: "User not found" });
 
   const otp = generateOtp();
-  storeOtp(user_id, otp);
+  await db.saveOtp(user_id, "profile", otp, OTP_TTL);
 
   try {
     await sendOtp(user.phone, otp);
   } catch (err) {
-    // Remove the stored OTP if send failed
-    otpStore.delete(user_id);
     return res.status(502).json({ error: err.message || "Failed to send OTP" });
   }
 
@@ -79,9 +60,8 @@ async function changePassword(req, res) {
   const { user_id, college_id } = req.user;
   const { old_password, otp, new_password } = req.body;
 
-  if (!new_password || new_password.length < 6) {
-    return res.status(400).json({ error: "New password must be at least 6 characters" });
-  }
+  const pwdErr = validatePassword(new_password);
+  if (pwdErr) return res.status(400).json({ error: pwdErr });
   if (!old_password && !otp) {
     return res.status(400).json({ error: "Provide either old password or OTP" });
   }
@@ -94,9 +74,8 @@ async function changePassword(req, res) {
     const match = await bcrypt.compare(old_password, user.password_hash);
     if (!match) return res.status(400).json({ error: "Old password is incorrect" });
   } else {
-    if (!verifyOtp(user_id, otp)) {
-      return res.status(400).json({ error: "Invalid or expired OTP" });
-    }
+    const valid = await db.verifyAndConsumeOtp(user_id, "profile", otp);
+    if (!valid) return res.status(400).json({ error: "Invalid or expired OTP" });
   }
 
   const password_hash = await bcrypt.hash(new_password, 10);
