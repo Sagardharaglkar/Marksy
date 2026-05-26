@@ -1,6 +1,5 @@
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const { v4: uuidv4 } = require("uuid");
 const db = require("../db/queries");
 const { audit } = require("../db/audit");
 const { sendOtp } = require("../services/whatsapp");
@@ -55,7 +54,7 @@ async function login(req, res) {
     return res.status(403).json({ error: "Account is blocked. Contact your administrator." });
   }
 
-  const jti = uuidv4();
+  const jti = require("crypto").randomUUID();
   const payload = {
     jti,
     user_id: user.user_id,
