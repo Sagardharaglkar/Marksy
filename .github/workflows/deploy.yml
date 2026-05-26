@@ -31,7 +31,7 @@ jobs:
         working-directory: frontend
         run: npm run build
         env:
-          VITE_API_URL: http://marksy.vengurlatech.com/api
+          VITE_API_URL: https://marksy.vengurlatech.com/api
 
       - name: Push backend folder to `backend` branch
         run: |
