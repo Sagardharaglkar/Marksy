@@ -287,7 +287,7 @@ export default function LoginPage() {
             <span className="font-head text-[11px] font-bold tracking-[0.25em] text-zinc-500 uppercase">Marks Portal</span>
           </div>
           <h1 className="font-head text-5xl font-extrabold text-white leading-[1.1] mb-6">
-            Academic<br />Records<br />System
+            Semester<br />Evaluation<br />Record System
           </h1>
           <p className="text-zinc-400 text-sm leading-relaxed max-w-[260px]">
             Secure marks management for colleges, faculty, and administrators.
