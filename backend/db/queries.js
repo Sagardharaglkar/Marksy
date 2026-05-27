@@ -14,6 +14,16 @@ async function query(sqlText, params = {}) {
   return request.query(sqlText);
 }
 
+function paginate(page, limit) {
+  const p = Math.max(1, parseInt(page) || 1);
+  const l = Math.min(200, Math.max(1, parseInt(limit) || 50));
+  return { page: p, limit: l, offset: (p - 1) * l };
+}
+
+function pageResult(data, total, page, limit) {
+  return { data, total, page, limit, pages: Math.ceil(total / limit) };
+}
+
 // ─── colleges ────────────────────────────────────────────────────────────────
 
 async function getCollegeByCode(college_code) {
@@ -43,11 +53,18 @@ async function createCollege(name, college_code) {
   return result.recordset[0].college_id;
 }
 
-async function getAllColleges() {
-  const result = await query(
-    "SELECT college_id, college_code, name, is_active, created_at FROM colleges ORDER BY created_at DESC"
-  );
-  return result.recordset;
+async function getAllColleges(page, limit) {
+  const { page: p, limit: l, offset } = paginate(page, limit);
+  const [dataRes, countRes] = await Promise.all([
+    query(
+      `SELECT college_id, college_code, name, is_active, created_at FROM colleges
+       ORDER BY created_at DESC
+       OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY`,
+      { offset: { type: sql.Int, value: offset }, limit: { type: sql.Int, value: l } }
+    ),
+    query("SELECT COUNT(*) AS total FROM colleges"),
+  ]);
+  return pageResult(dataRes.recordset, countRes.recordset[0].total, p, l);
 }
 
 // ─── users ────────────────────────────────────────────────────────────────────
@@ -91,14 +108,22 @@ async function createUser(college_id, role, name, phone, password_hash) {
   return result.recordset[0].user_id;
 }
 
-async function getClerksByCollege(college_id) {
-  const result = await query(
-    `SELECT user_id, name, phone, is_blocked FROM users
-     WHERE college_id = @college_id AND role = 'clerk'
-     ORDER BY name`,
-    { college_id: { type: sql.Int, value: college_id } }
-  );
-  return result.recordset;
+async function getClerksByCollege(college_id, page, limit) {
+  const { page: p, limit: l, offset } = paginate(page, limit);
+  const [dataRes, countRes] = await Promise.all([
+    query(
+      `SELECT user_id, name, phone, is_blocked FROM users
+       WHERE college_id = @college_id AND role = 'clerk'
+       ORDER BY name
+       OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY`,
+      { college_id: { type: sql.Int, value: college_id }, offset: { type: sql.Int, value: offset }, limit: { type: sql.Int, value: l } }
+    ),
+    query(
+      `SELECT COUNT(*) AS total FROM users WHERE college_id = @college_id AND role = 'clerk'`,
+      { college_id: { type: sql.Int, value: college_id } }
+    ),
+  ]);
+  return pageResult(dataRes.recordset, countRes.recordset[0].total, p, l);
 }
 
 async function updateFaculty(college_id, user_id, name, phone) {
@@ -169,14 +194,22 @@ async function setCollegeActive(college_id, is_active) {
   );
 }
 
-async function getFacultyByCollege(college_id) {
-  const result = await query(
-    `SELECT user_id, name, phone FROM users
-     WHERE college_id = @college_id AND role = 'faculty'
-     ORDER BY name`,
-    { college_id: { type: sql.Int, value: college_id } }
-  );
-  return result.recordset;
+async function getFacultyByCollege(college_id, page, limit) {
+  const { page: p, limit: l, offset } = paginate(page, limit);
+  const [dataRes, countRes] = await Promise.all([
+    query(
+      `SELECT user_id, name, phone FROM users
+       WHERE college_id = @college_id AND role = 'faculty'
+       ORDER BY name
+       OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY`,
+      { college_id: { type: sql.Int, value: college_id }, offset: { type: sql.Int, value: offset }, limit: { type: sql.Int, value: l } }
+    ),
+    query(
+      `SELECT COUNT(*) AS total FROM users WHERE college_id = @college_id AND role = 'faculty'`,
+      { college_id: { type: sql.Int, value: college_id } }
+    ),
+  ]);
+  return pageResult(dataRes.recordset, countRes.recordset[0].total, p, l);
 }
 
 async function getUserById(college_id, user_id) {
@@ -193,12 +226,20 @@ async function getUserById(college_id, user_id) {
 
 // ─── classes ──────────────────────────────────────────────────────────────────
 
-async function getClasses(college_id) {
-  const result = await query(
-    `SELECT class_id, name FROM classes WHERE college_id = @college_id ORDER BY name`,
-    { college_id: { type: sql.Int, value: college_id } }
-  );
-  return result.recordset;
+async function getClasses(college_id, page, limit) {
+  const { page: p, limit: l, offset } = paginate(page, limit);
+  const [dataRes, countRes] = await Promise.all([
+    query(
+      `SELECT class_id, name FROM classes WHERE college_id = @college_id ORDER BY name
+       OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY`,
+      { college_id: { type: sql.Int, value: college_id }, offset: { type: sql.Int, value: offset }, limit: { type: sql.Int, value: l } }
+    ),
+    query(
+      `SELECT COUNT(*) AS total FROM classes WHERE college_id = @college_id`,
+      { college_id: { type: sql.Int, value: college_id } }
+    ),
+  ]);
+  return pageResult(dataRes.recordset, countRes.recordset[0].total, p, l);
 }
 
 async function createClass(college_id, name) {
@@ -246,33 +287,42 @@ async function getSubjectByCode(college_id, subject_code) {
   return result.recordset[0] || null;
 }
 
-async function getSubjectsByClass(college_id, class_id) {
-  const result = await query(
-    `SELECT subject_id, name, subject_code, semester, internal_max, external_max
-     FROM subjects
-     WHERE college_id = @college_id AND class_id = @class_id
-     ORDER BY semester, name`,
-    {
-      college_id: { type: sql.Int, value: college_id },
-      class_id: { type: sql.Int, value: class_id },
-    }
-  );
-  return result.recordset;
+async function getSubjectsByClass(college_id, class_id, page, limit) {
+  const { page: p, limit: l, offset } = paginate(page, limit);
+  const [dataRes, countRes] = await Promise.all([
+    query(
+      `SELECT subject_id, name, subject_code, semester, internal_max, external_max
+       FROM subjects
+       WHERE college_id = @college_id AND class_id = @class_id
+       ORDER BY semester, name
+       OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY`,
+      { college_id: { type: sql.Int, value: college_id }, class_id: { type: sql.Int, value: class_id }, offset: { type: sql.Int, value: offset }, limit: { type: sql.Int, value: l } }
+    ),
+    query(
+      `SELECT COUNT(*) AS total FROM subjects WHERE college_id = @college_id AND class_id = @class_id`,
+      { college_id: { type: sql.Int, value: college_id }, class_id: { type: sql.Int, value: class_id } }
+    ),
+  ]);
+  return pageResult(dataRes.recordset, countRes.recordset[0].total, p, l);
 }
 
-async function getSubjectsByClassAndSemester(college_id, class_id, semester) {
-  const result = await query(
-    `SELECT subject_id, name, subject_code, semester, internal_max, external_max
-     FROM subjects
-     WHERE college_id = @college_id AND class_id = @class_id AND semester = @semester
-     ORDER BY name`,
-    {
-      college_id: { type: sql.Int, value: college_id },
-      class_id: { type: sql.Int, value: class_id },
-      semester: { type: sql.Int, value: semester },
-    }
-  );
-  return result.recordset;
+async function getSubjectsByClassAndSemester(college_id, class_id, semester, page, limit) {
+  const { page: p, limit: l, offset } = paginate(page, limit);
+  const [dataRes, countRes] = await Promise.all([
+    query(
+      `SELECT subject_id, name, subject_code, semester, internal_max, external_max
+       FROM subjects
+       WHERE college_id = @college_id AND class_id = @class_id AND semester = @semester
+       ORDER BY name
+       OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY`,
+      { college_id: { type: sql.Int, value: college_id }, class_id: { type: sql.Int, value: class_id }, semester: { type: sql.Int, value: semester }, offset: { type: sql.Int, value: offset }, limit: { type: sql.Int, value: l } }
+    ),
+    query(
+      `SELECT COUNT(*) AS total FROM subjects WHERE college_id = @college_id AND class_id = @class_id AND semester = @semester`,
+      { college_id: { type: sql.Int, value: college_id }, class_id: { type: sql.Int, value: class_id }, semester: { type: sql.Int, value: semester } }
+    ),
+  ]);
+  return pageResult(dataRes.recordset, countRes.recordset[0].total, p, l);
 }
 
 async function createSubject(college_id, class_id, name, subject_code, semester, internal_max, external_max) {
@@ -322,18 +372,23 @@ async function deleteSubject(college_id, subject_id) {
 
 // ─── students ─────────────────────────────────────────────────────────────────
 
-async function getStudentsByClass(college_id, class_id) {
-  const result = await query(
-    `SELECT student_id, seat_no, registration_no, name, semester
-     FROM students
-     WHERE college_id = @college_id AND class_id = @class_id
-     ORDER BY semester, seat_no`,
-    {
-      college_id: { type: sql.Int, value: college_id },
-      class_id: { type: sql.Int, value: class_id },
-    }
-  );
-  return result.recordset;
+async function getStudentsByClass(college_id, class_id, page, limit) {
+  const { page: p, limit: l, offset } = paginate(page, limit);
+  const [dataRes, countRes] = await Promise.all([
+    query(
+      `SELECT student_id, seat_no, registration_no, name, semester
+       FROM students
+       WHERE college_id = @college_id AND class_id = @class_id
+       ORDER BY semester, seat_no
+       OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY`,
+      { college_id: { type: sql.Int, value: college_id }, class_id: { type: sql.Int, value: class_id }, offset: { type: sql.Int, value: offset }, limit: { type: sql.Int, value: l } }
+    ),
+    query(
+      `SELECT COUNT(*) AS total FROM students WHERE college_id = @college_id AND class_id = @class_id`,
+      { college_id: { type: sql.Int, value: college_id }, class_id: { type: sql.Int, value: class_id } }
+    ),
+  ]);
+  return pageResult(dataRes.recordset, countRes.recordset[0].total, p, l);
 }
 
 async function createStudent(college_id, class_id, seat_no, registration_no, name, semester) {
@@ -355,39 +410,52 @@ async function createStudent(college_id, class_id, seat_no, registration_no, nam
 
 // ─── assignments ──────────────────────────────────────────────────────────────
 
-async function getAssignmentsByFaculty(college_id, faculty_id) {
-  const result = await query(
-    `SELECT a.assignment_id, a.status, a.mark_type,
-            s.name AS subject_name, s.subject_code, s.subject_id, s.semester,
-            c.name AS class_name, c.class_id
-     FROM assignments a
-     JOIN subjects s ON a.subject_id = s.subject_id
-     JOIN classes c ON s.class_id = c.class_id
-     WHERE a.college_id = @college_id AND a.faculty_id = @faculty_id
-     ORDER BY s.name, a.mark_type`,
-    {
-      college_id: { type: sql.Int, value: college_id },
-      faculty_id: { type: sql.Int, value: faculty_id },
-    }
-  );
-  return result.recordset;
+async function getAssignmentsByFaculty(college_id, faculty_id, page, limit) {
+  const { page: p, limit: l, offset } = paginate(page, limit);
+  const [dataRes, countRes] = await Promise.all([
+    query(
+      `SELECT a.assignment_id, a.status, a.mark_type,
+              s.name AS subject_name, s.subject_code, s.subject_id, s.semester,
+              c.name AS class_name, c.class_id
+       FROM assignments a
+       JOIN subjects s ON a.subject_id = s.subject_id
+       JOIN classes c ON s.class_id = c.class_id
+       WHERE a.college_id = @college_id AND a.faculty_id = @faculty_id
+       ORDER BY s.name, a.mark_type
+       OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY`,
+      { college_id: { type: sql.Int, value: college_id }, faculty_id: { type: sql.Int, value: faculty_id }, offset: { type: sql.Int, value: offset }, limit: { type: sql.Int, value: l } }
+    ),
+    query(
+      `SELECT COUNT(*) AS total FROM assignments WHERE college_id = @college_id AND faculty_id = @faculty_id`,
+      { college_id: { type: sql.Int, value: college_id }, faculty_id: { type: sql.Int, value: faculty_id } }
+    ),
+  ]);
+  return pageResult(dataRes.recordset, countRes.recordset[0].total, p, l);
 }
 
-async function getAssignmentsByCollege(college_id) {
-  const result = await query(
-    `SELECT a.assignment_id, a.status, a.mark_type, a.created_at,
-            s.name AS subject_name, s.subject_code, s.subject_id,
-            c.name AS class_name, c.class_id,
-            u.name AS faculty_name, u.user_id AS faculty_id
-     FROM assignments a
-     JOIN subjects s ON a.subject_id = s.subject_id
-     JOIN classes c ON s.class_id = c.class_id
-     LEFT JOIN users u ON a.faculty_id = u.user_id
-     WHERE a.college_id = @college_id
-     ORDER BY c.name, s.name, a.mark_type`,
-    { college_id: { type: sql.Int, value: college_id } }
-  );
-  return result.recordset;
+async function getAssignmentsByCollege(college_id, page, limit) {
+  const { page: p, limit: l, offset } = paginate(page, limit);
+  const [dataRes, countRes] = await Promise.all([
+    query(
+      `SELECT a.assignment_id, a.status, a.mark_type, a.created_at,
+              s.name AS subject_name, s.subject_code, s.subject_id,
+              c.name AS class_name, c.class_id,
+              u.name AS faculty_name, u.user_id AS faculty_id
+       FROM assignments a
+       JOIN subjects s ON a.subject_id = s.subject_id
+       JOIN classes c ON s.class_id = c.class_id
+       LEFT JOIN users u ON a.faculty_id = u.user_id
+       WHERE a.college_id = @college_id
+       ORDER BY c.name, s.name, a.mark_type
+       OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY`,
+      { college_id: { type: sql.Int, value: college_id }, offset: { type: sql.Int, value: offset }, limit: { type: sql.Int, value: l } }
+    ),
+    query(
+      `SELECT COUNT(*) AS total FROM assignments WHERE college_id = @college_id`,
+      { college_id: { type: sql.Int, value: college_id } }
+    ),
+  ]);
+  return pageResult(dataRes.recordset, countRes.recordset[0].total, p, l);
 }
 
 async function getAssignmentById(college_id, assignment_id) {
@@ -460,23 +528,34 @@ async function deleteAssignment(college_id, assignment_id) {
 
 // ─── marks ────────────────────────────────────────────────────────────────────
 
-async function getMarksByAssignment(college_id, assignment_id) {
-  const result = await query(
-    `SELECT m.mark_id, m.student_id, m.value, m.updated_at,
-            s.seat_no, s.registration_no, s.name AS student_name
-     FROM marks m
-     JOIN students s ON m.student_id = s.student_id
-     JOIN assignments a ON m.assignment_id = a.assignment_id
-     JOIN subjects sub ON a.subject_id = sub.subject_id
-     WHERE m.college_id = @college_id AND m.assignment_id = @assignment_id
-       AND (sub.semester IS NULL OR s.semester = sub.semester OR s.semester IS NULL)
-     ORDER BY s.seat_no`,
-    {
-      college_id: { type: sql.Int, value: college_id },
-      assignment_id: { type: sql.Int, value: assignment_id },
-    }
-  );
-  return result.recordset;
+async function getMarksByAssignment(college_id, assignment_id, page, limit) {
+  const { page: p, limit: l, offset } = paginate(page, limit);
+  const [dataRes, countRes] = await Promise.all([
+    query(
+      `SELECT m.mark_id, m.student_id, m.value, m.updated_at,
+              s.seat_no, s.registration_no, s.name AS student_name
+       FROM marks m
+       JOIN students s ON m.student_id = s.student_id
+       JOIN assignments a ON m.assignment_id = a.assignment_id
+       JOIN subjects sub ON a.subject_id = sub.subject_id
+       WHERE m.college_id = @college_id AND m.assignment_id = @assignment_id
+         AND (sub.semester IS NULL OR s.semester = sub.semester OR s.semester IS NULL)
+       ORDER BY s.seat_no
+       OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY`,
+      { college_id: { type: sql.Int, value: college_id }, assignment_id: { type: sql.Int, value: assignment_id }, offset: { type: sql.Int, value: offset }, limit: { type: sql.Int, value: l } }
+    ),
+    query(
+      `SELECT COUNT(*) AS total
+       FROM marks m
+       JOIN students s ON m.student_id = s.student_id
+       JOIN assignments a ON m.assignment_id = a.assignment_id
+       JOIN subjects sub ON a.subject_id = sub.subject_id
+       WHERE m.college_id = @college_id AND m.assignment_id = @assignment_id
+         AND (sub.semester IS NULL OR s.semester = sub.semester OR s.semester IS NULL)`,
+      { college_id: { type: sql.Int, value: college_id }, assignment_id: { type: sql.Int, value: assignment_id } }
+    ),
+  ]);
+  return pageResult(dataRes.recordset, countRes.recordset[0].total, p, l);
 }
 
 async function upsertMark(college_id, assignment_id, student_id, value) {

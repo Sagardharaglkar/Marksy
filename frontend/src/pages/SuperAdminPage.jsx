@@ -119,12 +119,12 @@ export default function SuperAdminPage() {
   async function fetchColleges() {
     try {
       const res = await api.get("/super-admin/colleges");
-      const list = res.data;
+      const list = res.data.data;
       setColleges(list);
       const results = await Promise.all(
         list.map(c =>
           api.get(`/super-admin/colleges/${c.college_id}/clerks`)
-            .then(r => ({ id: c.college_id, clerks: r.data }))
+            .then(r => ({ id: c.college_id, clerks: r.data.data }))
         )
       );
       const map = {};

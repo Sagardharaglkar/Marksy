@@ -137,8 +137,9 @@ async function addStudent(req, res) {
 async function listStudents(req, res) {
   const { college_id } = req.user;
   const { class_id } = req.params;
-  const students = await db.getStudentsByClass(college_id, Number(class_id));
-  return res.json(students);
+  const { page, limit } = req.query;
+  const result = await db.getStudentsByClass(college_id, Number(class_id), page, limit);
+  return res.json(result);
 }
 
 module.exports = { importStudents, addStudent, listStudents };

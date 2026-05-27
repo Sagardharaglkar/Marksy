@@ -10,8 +10,9 @@ const toTitleCase = s => s.trim().replace(/\w\S*/g, w => w.charAt(0).toUpperCase
 
 async function listClasses(req, res) {
   const { college_id } = req.user;
-  const classes = await db.getClasses(college_id);
-  return res.json(classes);
+  const { page, limit } = req.query;
+  const result = await db.getClasses(college_id, page, limit);
+  return res.json(result);
 }
 
 async function createClass(req, res) {
@@ -59,13 +60,13 @@ async function listSubjects(req, res) {
 async function listSubjectsBySemester(req, res) {
   const { college_id } = req.user;
   const { class_id } = req.params;
-  const { semester } = req.query;
+  const { semester, page, limit } = req.query;
   if (!semester) {
-    const subjects = await db.getSubjectsByClass(college_id, Number(class_id));
-    return res.json(subjects);
+    const result = await db.getSubjectsByClass(college_id, Number(class_id), page, limit);
+    return res.json(result);
   }
-  const subjects = await db.getSubjectsByClassAndSemester(college_id, Number(class_id), Number(semester));
-  return res.json(subjects);
+  const result = await db.getSubjectsByClassAndSemester(college_id, Number(class_id), Number(semester), page, limit);
+  return res.json(result);
 }
 
 async function createSubject(req, res) {
@@ -119,8 +120,9 @@ async function deleteSubject(req, res) {
 
 async function listFaculty(req, res) {
   const { college_id } = req.user;
-  const faculty = await db.getFacultyByCollege(college_id);
-  return res.json(faculty);
+  const { page, limit } = req.query;
+  const result = await db.getFacultyByCollege(college_id, page, limit);
+  return res.json(result);
 }
 
 async function createFaculty(req, res) {
@@ -175,8 +177,9 @@ async function deleteFaculty(req, res) {
 
 async function listAssignments(req, res) {
   const { college_id } = req.user;
-  const assignments = await db.getAssignmentsByCollege(college_id);
-  return res.json(assignments);
+  const { page, limit } = req.query;
+  const result = await db.getAssignmentsByCollege(college_id, page, limit);
+  return res.json(result);
 }
 
 async function createAssignment(req, res) {
@@ -240,11 +243,12 @@ async function lockAssignment(req, res) {
 async function viewMarks(req, res) {
   const { college_id } = req.user;
   const { assignment_id } = req.params;
+  const { page, limit } = req.query;
   const assignment = await db.getAssignmentById(college_id, Number(assignment_id));
   if (!assignment) {
     return res.status(404).json({ error: "Assignment not found" });
   }
-  const marks = await db.getMarksByAssignment(college_id, Number(assignment_id));
+  const marks = await db.getMarksByAssignment(college_id, Number(assignment_id), page, limit);
   return res.json({ assignment, marks });
 }
 

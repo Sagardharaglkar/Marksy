@@ -65,7 +65,7 @@ export default function FacultyPage() {
 
   useEffect(() => {
     api.get("/faculty/assignments")
-      .then(res => { setAssignments(res.data); setLoading(false); })
+      .then(res => { setAssignments(res.data.data); setLoading(false); })
       .catch(err => {
         setLoadError(err.friendlyMessage || err.response?.data?.error || "Failed to load assignments");
         setLoading(false);
@@ -113,8 +113,8 @@ export default function FacultyPage() {
     navigate("#marks");
     setSelected(a); setMarksLoading(true); setSaveMsg(""); setSidebarOpen(false);
     const res = await api.get(`/faculty/assignments/${a.assignment_id}/marks`);
-    setMarksData(res.data);
-    dispatch({ type: "SET", marks: res.data.marks });
+    setMarksData({ assignment: res.data.assignment, marks: res.data.marks.data });
+    dispatch({ type: "SET", marks: res.data.marks.data });
     setMarksLoading(false);
   }
 
@@ -150,10 +150,10 @@ export default function FacultyPage() {
       await api.post(`/faculty/assignments/${selected.assignment_id}/marks`, { marks });
       await api.patch(`/faculty/assignments/${selected.assignment_id}/submit`);
       const res = await api.get(`/faculty/assignments/${selected.assignment_id}/marks`);
-      setMarksData(res.data);
+      setMarksData({ assignment: res.data.assignment, marks: res.data.marks.data });
       setSelected(prev => ({ ...prev, status: "submitted" }));
       const aRes = await api.get("/faculty/assignments");
-      setAssignments(aRes.data);
+      setAssignments(aRes.data.data);
     } finally { setSubmitting(false); }
   }
 
@@ -162,10 +162,10 @@ export default function FacultyPage() {
     try {
       await api.patch(`/faculty/assignments/${selected.assignment_id}/reopen`);
       const res = await api.get(`/faculty/assignments/${selected.assignment_id}/marks`);
-      setMarksData(res.data);
+      setMarksData({ assignment: res.data.assignment, marks: res.data.marks.data });
       setSelected(prev => ({ ...prev, status: "open" }));
       const aRes = await api.get("/faculty/assignments");
-      setAssignments(aRes.data);
+      setAssignments(aRes.data.data);
     } finally { setReopening(false); }
   }
 

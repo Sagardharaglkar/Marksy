@@ -87,14 +87,16 @@ async function createCollege(req, res) {
 }
 
 async function listColleges(req, res) {
-  const colleges = await db.getAllColleges();
-  return res.json(colleges);
+  const { page, limit } = req.query;
+  const result = await db.getAllColleges(page, limit);
+  return res.json(result);
 }
 
 async function listClerks(req, res) {
   const { college_id } = req.params;
-  const clerks = await db.getClerksByCollege(Number(college_id));
-  return res.json(clerks);
+  const { page, limit } = req.query;
+  const result = await db.getClerksByCollege(Number(college_id), page, limit);
+  return res.json(result);
 }
 
 async function createFirstClerk(req, res) {

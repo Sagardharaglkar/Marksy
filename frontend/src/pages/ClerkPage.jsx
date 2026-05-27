@@ -231,10 +231,10 @@ export default function ClerkPage() {
 
       {/* ── Content ── */}
       <main className="flex-1 max-w-screen-xl w-full mx-auto px-4 sm:px-6 py-6">
-        {tab === "Classes"     && <ClassesTab />}
-        {tab === "Faculty"     && <FacultyTab />}
-        {tab === "Assignments" && <AssignmentsTab />}
-        {tab === "Marks"       && <MarksTab />}
+        <div className={tab === "Classes"     ? "" : "hidden"}><ClassesTab /></div>
+        <div className={tab === "Faculty"     ? "" : "hidden"}><FacultyTab /></div>
+        <div className={tab === "Assignments" ? "" : "hidden"}><AssignmentsTab /></div>
+        <div className={tab === "Marks"       ? "" : "hidden"}><MarksTab /></div>
       </main>
     </div>
   );
@@ -273,7 +273,7 @@ function ClassesTab() {
 
   async function fetchClasses() {
     setLoadError("");
-    try { const res = await api.get("/clerk/classes"); setClasses(res.data); }
+    try { const res = await api.get("/clerk/classes"); setClasses(res.data.data); }
     catch (err) { setLoadError(err.friendlyMessage || err.response?.data?.error || "Failed to load classes"); }
     finally { setLoading(false); }
   }
@@ -282,7 +282,7 @@ function ClassesTab() {
   async function openSubjects(cls) {
     setSelectedClass(cls);
     const res = await api.get(`/clerk/classes/${cls.class_id}/subjects`);
-    setSubjects(res.data);
+    setSubjects(res.data.data);
     setSubjectName(""); setSubjectCode(""); setSubjectSemester(""); setInternalMax(""); setExternalMax(""); setSubjectError("");
     setModal("subjects");
   }
@@ -290,7 +290,7 @@ function ClassesTab() {
   async function openStudents(cls) {
     setSelectedClass(cls);
     const res = await api.get(`/clerk/classes/${cls.class_id}/students`);
-    setStudents(res.data);
+    setStudents(res.data.data);
     setXlsxFile(null); setCsvError(""); setCsvSuccess("");
     setSeatNo(""); setRegNo(""); setStudentName(""); setStudentSemester(""); setStudentError("");
     setAddMode("single");
@@ -309,7 +309,7 @@ function ClassesTab() {
       });
       setSeatNo(""); setRegNo(""); setStudentName(""); setStudentSemester("");
       const res = await api.get(`/clerk/classes/${selectedClass.class_id}/students`);
-      setStudents(res.data);
+      setStudents(res.data.data);
     } catch (err) { setStudentError(err.response?.data?.error || "Failed"); }
     finally { setSubmitting(false); }
   }
@@ -345,7 +345,7 @@ function ClassesTab() {
         internal_max: internalMax || null, external_max: externalMax || null,
       });
       const res = await api.get(`/clerk/classes/${selectedClass.class_id}/subjects`);
-      setSubjects(res.data);
+      setSubjects(res.data.data);
       setSubjectName(""); setSubjectCode(""); setSubjectSemester(""); setInternalMax(""); setExternalMax("");
     } catch (err) { setSubjectError(err.response?.data?.error || "Failed"); }
     finally { setSubmitting(false); }
@@ -355,7 +355,7 @@ function ClassesTab() {
     if (!confirm("Delete this subject?")) return;
     await api.delete(`/clerk/subjects/${subject_id}`);
     const res = await api.get(`/clerk/classes/${selectedClass.class_id}/subjects`);
-    setSubjects(res.data);
+    setSubjects(res.data.data);
   }
 
   async function handleImportExcel(e) {
@@ -373,7 +373,7 @@ function ClassesTab() {
       setCsvSuccess(`Imported ${res.data.imported} students.`);
       setXlsxFile(null);
       const sr = await api.get(`/clerk/classes/${selectedClass.class_id}/students`);
-      setStudents(sr.data);
+      setStudents(sr.data.data);
     } catch (err) {
       if (err.response?.data?.errors) {
         setCsvError(err.response.data.errors.map(e => `Row ${e.line}: ${e.error}`).join("\n"));
@@ -624,7 +624,7 @@ function FacultyTab() {
 
   async function fetchFaculty() {
     setLoadError("");
-    try { const res = await api.get("/clerk/faculty"); setFaculty(res.data); }
+    try { const res = await api.get("/clerk/faculty"); setFaculty(res.data.data); }
     catch (err) { setLoadError(err.friendlyMessage || err.response?.data?.error || "Failed to load faculty"); }
     finally { setLoading(false); }
   }
@@ -795,7 +795,7 @@ function AssignmentsTab() {
         api.get("/clerk/classes"),
         api.get("/clerk/faculty"),
       ]);
-      setAssignments(aRes.data); setClasses(cRes.data); setFaculty(fRes.data);
+      setAssignments(aRes.data.data); setClasses(cRes.data.data); setFaculty(fRes.data.data);
     } catch (err) {
       setLoadError(err.friendlyMessage || err.response?.data?.error || "Failed to load assignments");
     } finally {
@@ -808,7 +808,7 @@ function AssignmentsTab() {
     setSelectedClassId(e.target.value); setSelectedSubjectId(""); setSelectedSemester(""); setSubjects([]);
     if (!e.target.value) return;
     const res = await api.get(`/clerk/classes/${e.target.value}/subjects`);
-    setSubjects(res.data);
+    setSubjects(res.data.data);
   }
 
   async function onSemesterChange(e) {
@@ -818,7 +818,7 @@ function AssignmentsTab() {
       ? `/clerk/classes/${selectedClassId}/subjects?semester=${e.target.value}`
       : `/clerk/classes/${selectedClassId}/subjects`;
     const res = await api.get(url);
-    setSubjects(res.data);
+    setSubjects(res.data.data);
   }
 
   function openAdd() { setSelectedClassId(""); setSelectedSemester(""); setSelectedSubjectId(""); setSelectedFacultyId(""); setMarkType("internal"); setSubjects([]); setError(""); setModal("add"); }
@@ -1087,8 +1087,8 @@ function MarksTab() {
       api.get("/clerk/assignments"),
       api.get("/clerk/classes"),
     ]).then(([aRes, cRes]) => {
-      setAssignments(aRes.data);
-      setClasses(cRes.data);
+      setAssignments(aRes.data.data);
+      setClasses(cRes.data.data);
       setLoading(false);
     }).catch(err => {
       setLoadError(err.friendlyMessage || err.response?.data?.error || "Failed to load");
@@ -1099,7 +1099,8 @@ function MarksTab() {
   async function viewMarks(a) {
     setSelected(a); setMarksLoading(true); setMarkSearch(""); setPanelOpen(false);
     const res = await api.get(`/clerk/assignments/${a.assignment_id}/marks`);
-    setMarksData(res.data); setMarksLoading(false);
+    setMarksData({ assignment: res.data.assignment, marks: res.data.marks.data });
+    setMarksLoading(false);
   }
 
   function downloadMarks(a) {

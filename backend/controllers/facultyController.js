@@ -3,8 +3,9 @@ const { audit } = require("../db/audit");
 
 async function listAssignments(req, res) {
   const { college_id, user_id } = req.user;
-  const assignments = await db.getAssignmentsByFaculty(college_id, user_id);
-  return res.json(assignments);
+  const { page, limit } = req.query;
+  const result = await db.getAssignmentsByFaculty(college_id, user_id, page, limit);
+  return res.json(result);
 }
 
 async function getMarks(req, res) {
@@ -23,7 +24,8 @@ async function getMarks(req, res) {
   // Ensure mark rows exist for all students in the class
   await db.seedMarksForAssignment(college_id, Number(assignment_id), assignment.class_id);
 
-  const marks = await db.getMarksByAssignment(college_id, Number(assignment_id));
+  const { page, limit } = req.query;
+  const marks = await db.getMarksByAssignment(college_id, Number(assignment_id), page, limit);
   return res.json({ assignment, marks });
 }
 
